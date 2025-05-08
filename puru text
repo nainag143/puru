@@ -1,0 +1,283 @@
+{
+    "id": 25,
+    "created_date": "2025-05-07T23:42:49",
+    "created_by": null,
+    "dialer": "free switch",
+    "flow_type": "speech to speech",
+    "agent_name": "manoj",
+    "agent_type": "blank template",
+    "sts_model_id": "3c06690b-097d-410d-94ce-4edb301cf90a",
+    "sts_model_perms": {
+        "apikey": "manoj jadhav",
+        "encoding": "Linear16",
+        "sample_rate": "8000",
+        "endpointing": "1000",
+        "model": "Nova-2",
+        "interim_results": true,
+        "smart_format": true
+    },
+    "llm_model_id": "3c06690b-097d-410d-94ce-4edb301cf90a",
+    "llm_model_param": {
+        "apikey": "manoj",
+        "model": "Linear16",
+        "system_prompt": "prompt",
+        "document_url": "http://1msg.1point1.in:3001/media/uploads/22d663aa-585c-4f8e-ba20-ec67016d46b7.svg"
+    },
+    "llm_model_document": "This is a document content",
+    "tts_model_id": "3c06690b-097d-410d-94ce-4edb301cf90a",
+    "tts_model_perm": {
+        "language": "English(United States)",
+        "audio_device_profile": "English",
+        "voice": "male",
+        "speed": 24,
+        "pitch": 82
+    },
+    "user_id": 10,
+    "nodes_list": "[{\"id\": \"a680fb11-0e71-482d-b0fa-162610a216d4\", \"data\": {\"title\": \"Deepgram\", \"bottom\": {\"text\": \"Speech to Text Model\", \"icons\": [\"data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M17.3125%2017.3124L15.25%2015.2499M11.1251%2017.9999H9.19788C8.42932%2017.9999%208.04445%2017.9999%207.75061%2017.8502C7.49189%2017.7184%207.28169%2017.5078%207.14987%2017.2491C7%2016.955%207%2016.5701%207%2015.8001V9.20007C7%208.43%207%208.04468%207.14987%207.75055C7.28169%207.49183%207.49189%207.28163%207.75061%207.14981C8.04474%206.99994%208.43006%206.99994%209.20013%206.99994H15.8001C16.5702%206.99994%2016.9547%206.99994%2017.2488%207.1498C17.5076%207.28163%2017.7185%207.49183%2017.8503%207.75055C18%208.04439%2018%208.42925%2018%209.19781V11.1251M13.5312%2015.9374C12.2023%2015.9374%2011.125%2014.8601%2011.125%2013.5312C11.125%2012.2023%2012.2023%2011.1249%2013.5312%2011.1249C14.8602%2011.1249%2015.9375%2012.2023%2015.9375%2013.5312C15.9375%2014.8601%2014.8602%2015.9374%2013.5312%2015.9374Z'%20stroke='%23B8B9C1'%20stroke-width='1.375'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e\", \"data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M5.71679%2012.9701C7.08244%2014.3277%209.4641%2016.2096%2012.1737%2016.2096C14.8834%2016.2096%2017.2646%2014.3277%2018.6303%2012.9701C18.9904%2012.612%2019.1711%2012.4324%2019.2858%2012.0808C19.3676%2011.83%2019.3676%2011.3798%2019.2858%2011.129C19.1711%2010.7774%2018.9904%2010.5978%2018.6302%2010.2397C17.2646%208.882%2014.8834%207.00012%2012.1737%207.00012C9.4641%207.00012%207.08244%208.88201%205.71679%2010.2397C5.35634%2010.598%205.1761%2010.7773%205.06137%2011.129C4.97954%2011.3798%204.97954%2011.83%205.06137%2012.0808C5.1761%2012.4325%205.35634%2012.6117%205.71679%2012.9701Z'%20stroke='white'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.6387%2011.6049C10.6387%2012.4526%2011.3259%2013.1398%2012.1736%2013.1398C13.0213%2013.1398%2013.7085%2012.4526%2013.7085%2011.6049C13.7085%2010.7572%2013.0213%2010.07%2012.1736%2010.07C11.3259%2010.07%2010.6387%2010.7572%2010.6387%2011.6049Z'%20stroke='white'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e\"]}, \"fields\": [{\"name\": \"apikey\", \"type\": \"text\", \"label\": \"API Key\", \"value\": \"manoj\", \"infoIcon\": \"data:image/svg+xml,%3csvg%20width='22'%20height='22'%20viewBox='0%200%2022%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20clip-path='url(%23clip0_601_1938)'%3e%3cpath%20d='M10.5413%2017.4166C13.832%2017.4166%2016.4997%2014.749%2016.4997%2011.4583C16.4997%208.16758%2013.832%205.49994%2010.5413%205.49994C7.25064%205.49994%204.58301%208.16758%204.58301%2011.4583C4.58301%2014.749%207.25064%2017.4166%2010.5413%2017.4166Z'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%208.81015V11.4583'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%2014.1064H10.5491'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_601_1938'%3e%3crect%20width='22'%20height='22'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e\", \"placeholder\": \"Type something\"}, {\"name\": \"encoding\", \"type\": \"select\", \"label\": \"Encoding\", \"value\": \"Linear16\", \"options\": [\"Linear16\", \"gpt-4\", \"gemini\"]}, {\"name\": \"sample_rate\", \"type\": \"select\", \"label\": \"Sample Rate\", \"value\": \"8000\", \"options\": [\"8000\", \"7000\", \"6000\"]}, {\"name\": \"endpointing\", \"type\": \"select\", \"label\": \"End Pointing\", \"value\": \"1000\", \"options\": [\"1000\", \"700\", \"500\"]}, {\"name\": \"model\", \"type\": \"select\", \"label\": \"Model\", \"value\": \"Nova-2\", \"options\": [\"Nova-2\", \"gpt-4\", \"gemini\"]}, {\"name\": \"interim_results\", \"type\": \"select\", \"label\": \"Interim Results\", \"value\": true, \"options\": [true, false]}, {\"name\": \"smart_format\", \"type\": \"select\", \"label\": \"Smart Format\", \"value\": true, \"options\": [true, false]}], \"nodeIcon\": \"/src/assets/componentmenuicon/Deepgram.svg\", \"playIcon\": \"data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M8%207.00002L16%2012.1429L8%2017.2857L8%207.00002Z'%20stroke='%23B8B9C1'%20stroke-width='1.28'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e\", \"description\": \"Generates text using Deepgram LLMs.\"}, \"type\": \"custom\", \"measured\": {\"width\": 249, \"height\": 627}, \"nodetype\": \"speech_to_text\", \"position\": {\"x\": 50, \"y\": 50}, \"selected\": false}, {\"id\": \"8c19deb7-cc6e-4ecf-aea1-13be521383c1\", \"data\": {\"title\": \"Google TTS\", \"bottom\": {\"text\": \"Text to Speech\", \"icons\": [\"data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M17.3125%2017.3124L15.25%2015.2499M11.1251%2017.9999H9.19788C8.42932%2017.9999%208.04445%2017.9999%207.75061%2017.8502C7.49189%2017.7184%207.28169%2017.5078%207.14987%2017.2491C7%2016.955%207%2016.5701%207%2015.8001V9.20007C7%208.43%207%208.04468%207.14987%207.75055C7.28169%207.49183%207.49189%207.28163%207.75061%207.14981C8.04474%206.99994%208.43006%206.99994%209.20013%206.99994H15.8001C16.5702%206.99994%2016.9547%206.99994%2017.2488%207.1498C17.5076%207.28163%2017.7185%207.49183%2017.8503%207.75055C18%208.04439%2018%208.42925%2018%209.19781V11.1251M13.5312%2015.9374C12.2023%2015.9374%2011.125%2014.8601%2011.125%2013.5312C11.125%2012.2023%2012.2023%2011.1249%2013.5312%2011.1249C14.8602%2011.1249%2015.9375%2012.2023%2015.9375%2013.5312C15.9375%2014.8601%2014.8602%2015.9374%2013.5312%2015.9374Z'%20stroke='%23B8B9C1'%20stroke-width='1.375'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e\", \"data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M5.71679%2012.9701C7.08244%2014.3277%209.4641%2016.2096%2012.1737%2016.2096C14.8834%2016.2096%2017.2646%2014.3277%2018.6303%2012.9701C18.9904%2012.612%2019.1711%2012.4324%2019.2858%2012.0808C19.3676%2011.83%2019.3676%2011.3798%2019.2858%2011.129C19.1711%2010.7774%2018.9904%2010.5978%2018.6302%2010.2397C17.2646%208.882%2014.8834%207.00012%2012.1737%207.00012C9.4641%207.00012%207.08244%208.88201%205.71679%2010.2397C5.35634%2010.598%205.1761%2010.7773%205.06137%2011.129C4.97954%2011.3798%204.97954%2011.83%205.06137%2012.0808C5.1761%2012.4325%205.35634%2012.6117%205.71679%2012.9701Z'%20stroke='white'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.6387%2011.6049C10.6387%2012.4526%2011.3259%2013.1398%2012.1736%2013.1398C13.0213%2013.1398%2013.7085%2012.4526%2013.7085%2011.6049C13.7085%2010.7572%2013.0213%2010.07%2012.1736%2010.07C11.3259%2010.07%2010.6387%2010.7572%2010.6387%2011.6049Z'%20stroke='white'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e\"]}, \"fields\": [{\"name\": \"language\", \"type\": \"select\", \"label\": \"Select Language\", \"value\": \"English(United States)\", \"options\": [\"English(United States)\", \"Hindi\", \"English\"], \"infoIcon\": \"data:image/svg+xml,%3csvg%20width='22'%20height='22'%20viewBox='0%200%2022%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20clip-path='url(%23clip0_601_1938)'%3e%3cpath%20d='M10.5413%2017.4166C13.832%2017.4166%2016.4997%2014.749%2016.4997%2011.4583C16.4997%208.16758%2013.832%205.49994%2010.5413%205.49994C7.25064%205.49994%204.58301%208.16758%204.58301%2011.4583C4.58301%2014.749%207.25064%2017.4166%2010.5413%2017.4166Z'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%208.81015V11.4583'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%2014.1064H10.5491'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_601_1938'%3e%3crect%20width='22'%20height='22'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e\"}, {\"name\": \"audio_device_profile\", \"type\": \"select\", \"label\": \"Audio Device Profile\", \"value\": \"English\", \"options\": [\"jhdag\", \"Hindi\", \"English\"], \"infoIcon\": \"data:image/svg+xml,%3csvg%20width='22'%20height='22'%20viewBox='0%200%2022%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20clip-path='url(%23clip0_601_1938)'%3e%3cpath%20d='M10.5413%2017.4166C13.832%2017.4166%2016.4997%2014.749%2016.4997%2011.4583C16.4997%208.16758%2013.832%205.49994%2010.5413%205.49994C7.25064%205.49994%204.58301%208.16758%204.58301%2011.4583C4.58301%2014.749%207.25064%2017.4166%2010.5413%2017.4166Z'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%208.81015V11.4583'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%2014.1064H10.5491'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_601_1938'%3e%3crect%20width='22'%20height='22'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e\"}, {\"name\": \"voice\", \"type\": \"select\", \"label\": \"Voice\", \"value\": \"male\", \"options\": [\"male\", \"female\", \"other\"]}, {\"name\": \"speed\", \"type\": \"slider\", \"label\": \"Speed\", \"value\": 24, \"infoIcon\": \"data:image/svg+xml,%3csvg%20width='22'%20height='22'%20viewBox='0%200%2022%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20clip-path='url(%23clip0_601_1938)'%3e%3cpath%20d='M10.5413%2017.4166C13.832%2017.4166%2016.4997%2014.749%2016.4997%2011.4583C16.4997%208.16758%2013.832%205.49994%2010.5413%205.49994C7.25064%205.49994%204.58301%208.16758%204.58301%2011.4583C4.58301%2014.749%207.25064%2017.4166%2010.5413%2017.4166Z'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%208.81015V11.4583'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%2014.1064H10.5491'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_601_1938'%3e%3crect%20width='22'%20height='22'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e\"}, {\"name\": \"pitch\", \"type\": \"slider\", \"label\": \"Pitch\", \"value\": 82, \"infoIcon\": \"data:image/svg+xml,%3csvg%20width='22'%20height='22'%20viewBox='0%200%2022%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20clip-path='url(%23clip0_601_1938)'%3e%3cpath%20d='M10.5413%2017.4166C13.832%2017.4166%2016.4997%2014.749%2016.4997%2011.4583C16.4997%208.16758%2013.832%205.49994%2010.5413%205.49994C7.25064%205.49994%204.58301%208.16758%204.58301%2011.4583C4.58301%2014.749%207.25064%2017.4166%2010.5413%2017.4166Z'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%208.81015V11.4583'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%2014.1064H10.5491'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_601_1938'%3e%3crect%20width='22'%20height='22'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e\"}], \"nodeIcon\": \"/src/assets/componentmenuicon/Google_TTS.svg\", \"playIcon\": \"data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M8%207.00002L16%2012.1429L8%2017.2857L8%207.00002Z'%20stroke='%23B8B9C1'%20stroke-width='1.28'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e\", \"description\": \"Generates speech using Google TTS.\"}, \"type\": \"custom\", \"measured\": {\"width\": 230, \"height\": 481}, \"nodetype\": \"text_to_speech\", \"position\": {\"x\": 750, \"y\": 150}, \"selected\": true}, {\"id\": \"168e289c-085d-43ea-8320-d86ba95df5b9\", \"data\": {\"title\": \"Open AI\", \"bottom\": {\"text\": \"Language Learning Model\", \"icons\": [\"data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M17.3125%2017.3124L15.25%2015.2499M11.1251%2017.9999H9.19788C8.42932%2017.9999%208.04445%2017.9999%207.75061%2017.8502C7.49189%2017.7184%207.28169%2017.5078%207.14987%2017.2491C7%2016.955%207%2016.5701%207%2015.8001V9.20007C7%208.43%207%208.04468%207.14987%207.75055C7.28169%207.49183%207.49189%207.28163%207.75061%207.14981C8.04474%206.99994%208.43006%206.99994%209.20013%206.99994H15.8001C16.5702%206.99994%2016.9547%206.99994%2017.2488%207.1498C17.5076%207.28163%2017.7185%207.49183%2017.8503%207.75055C18%208.04439%2018%208.42925%2018%209.19781V11.1251M13.5312%2015.9374C12.2023%2015.9374%2011.125%2014.8601%2011.125%2013.5312C11.125%2012.2023%2012.2023%2011.1249%2013.5312%2011.1249C14.8602%2011.1249%2015.9375%2012.2023%2015.9375%2013.5312C15.9375%2014.8601%2014.8602%2015.9374%2013.5312%2015.9374Z'%20stroke='%23B8B9C1'%20stroke-width='1.375'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e\", \"data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M5.71679%2012.9701C7.08244%2014.3277%209.4641%2016.2096%2012.1737%2016.2096C14.8834%2016.2096%2017.2646%2014.3277%2018.6303%2012.9701C18.9904%2012.612%2019.1711%2012.4324%2019.2858%2012.0808C19.3676%2011.83%2019.3676%2011.3798%2019.2858%2011.129C19.1711%2010.7774%2018.9904%2010.5978%2018.6302%2010.2397C17.2646%208.882%2014.8834%207.00012%2012.1737%207.00012C9.4641%207.00012%207.08244%208.88201%205.71679%2010.2397C5.35634%2010.598%205.1761%2010.7773%205.06137%2011.129C4.97954%2011.3798%204.97954%2011.83%205.06137%2012.0808C5.1761%2012.4325%205.35634%2012.6117%205.71679%2012.9701Z'%20stroke='white'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.6387%2011.6049C10.6387%2012.4526%2011.3259%2013.1398%2012.1736%2013.1398C13.0213%2013.1398%2013.7085%2012.4526%2013.7085%2011.6049C13.7085%2010.7572%2013.0213%2010.07%2012.1736%2010.07C11.3259%2010.07%2010.6387%2010.7572%2010.6387%2011.6049Z'%20stroke='white'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e\"]}, \"fields\": [{\"name\": \"apikey\", \"type\": \"text\", \"label\": \"API Key\", \"value\": \"manoj\", \"infoIcon\": \"data:image/svg+xml,%3csvg%20width='22'%20height='22'%20viewBox='0%200%2022%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20clip-path='url(%23clip0_601_1938)'%3e%3cpath%20d='M10.5413%2017.4166C13.832%2017.4166%2016.4997%2014.749%2016.4997%2011.4583C16.4997%208.16758%2013.832%205.49994%2010.5413%205.49994C7.25064%205.49994%204.58301%208.16758%204.58301%2011.4583C4.58301%2014.749%207.25064%2017.4166%2010.5413%2017.4166Z'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%208.81015V11.4583'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%2014.1064H10.5491'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_601_1938'%3e%3crect%20width='22'%20height='22'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e\", \"placeholder\": \"Type something\"}, {\"name\": \"model\", \"type\": \"select\", \"label\": \"Model\", \"value\": \"Linear16\", \"options\": [\"Linear16\", \"gpt-4\", \"gemini\"]}, {\"name\": \"system_prompt\", \"type\": \"textarea\", \"label\": \"System Prompt\", \"value\": \"prompt\", \"infoIcon\": \"data:image/svg+xml,%3csvg%20width='22'%20height='22'%20viewBox='0%200%2022%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20clip-path='url(%23clip0_601_1938)'%3e%3cpath%20d='M10.5413%2017.4166C13.832%2017.4166%2016.4997%2014.749%2016.4997%2011.4583C16.4997%208.16758%2013.832%205.49994%2010.5413%205.49994C7.25064%205.49994%204.58301%208.16758%204.58301%2011.4583C4.58301%2014.749%207.25064%2017.4166%2010.5413%2017.4166Z'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%208.81015V11.4583'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%2014.1064H10.5491'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_601_1938'%3e%3crect%20width='22'%20height='22'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e\", \"placeholder\": \"Type something\"}, {\"name\": \"document_url\", \"type\": \"file\", \"label\": \"Train by Document\", \"value\": \"http://1msg.1point1.in:3001/media/uploads/22d663aa-585c-4f8e-ba20-ec67016d46b7.svg\", \"message\": \"Upload the document in .pdf, .doc format.\", \"fileIcon\": \"data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M6%2014.9999V15.7499C6%2016.9926%207.00736%2017.9999%208.25%2017.9999H15.75C16.9927%2017.9999%2018%2016.9926%2018%2015.7499V14.9999M15%208.99994L12%205.99994M12%205.99994L9%208.99994M12%205.99994L12%2014.9999'%20stroke='%23B8B9C1'%20stroke-width='1.5'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e\"}], \"nodeIcon\": \"/src/assets/componentmenuicon/Chatgpt.svg\", \"playIcon\": \"data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M8%207.00002L16%2012.1429L8%2017.2857L8%207.00002Z'%20stroke='%23B8B9C1'%20stroke-width='1.28'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e\", \"description\": \"Generates text using OpenAI LLMs.\"}, \"type\": \"custom\", \"measured\": {\"width\": 260, \"height\": 496}, \"nodetype\": \"llm_models\", \"position\": {\"x\": 400, \"y\": 100}, \"selected\": false}]",
+    "edges": [],
+    "nodes": [
+        {
+            "id": "a680fb11-0e71-482d-b0fa-162610a216d4",
+            "data": {
+                "title": "Deepgram",
+                "bottom": {
+                    "text": "Speech to Text Model",
+                    "icons": [
+                        "data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M17.3125%2017.3124L15.25%2015.2499M11.1251%2017.9999H9.19788C8.42932%2017.9999%208.04445%2017.9999%207.75061%2017.8502C7.49189%2017.7184%207.28169%2017.5078%207.14987%2017.2491C7%2016.955%207%2016.5701%207%2015.8001V9.20007C7%208.43%207%208.04468%207.14987%207.75055C7.28169%207.49183%207.49189%207.28163%207.75061%207.14981C8.04474%206.99994%208.43006%206.99994%209.20013%206.99994H15.8001C16.5702%206.99994%2016.9547%206.99994%2017.2488%207.1498C17.5076%207.28163%2017.7185%207.49183%2017.8503%207.75055C18%208.04439%2018%208.42925%2018%209.19781V11.1251M13.5312%2015.9374C12.2023%2015.9374%2011.125%2014.8601%2011.125%2013.5312C11.125%2012.2023%2012.2023%2011.1249%2013.5312%2011.1249C14.8602%2011.1249%2015.9375%2012.2023%2015.9375%2013.5312C15.9375%2014.8601%2014.8602%2015.9374%2013.5312%2015.9374Z'%20stroke='%23B8B9C1'%20stroke-width='1.375'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e",
+                        "data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M5.71679%2012.9701C7.08244%2014.3277%209.4641%2016.2096%2012.1737%2016.2096C14.8834%2016.2096%2017.2646%2014.3277%2018.6303%2012.9701C18.9904%2012.612%2019.1711%2012.4324%2019.2858%2012.0808C19.3676%2011.83%2019.3676%2011.3798%2019.2858%2011.129C19.1711%2010.7774%2018.9904%2010.5978%2018.6302%2010.2397C17.2646%208.882%2014.8834%207.00012%2012.1737%207.00012C9.4641%207.00012%207.08244%208.88201%205.71679%2010.2397C5.35634%2010.598%205.1761%2010.7773%205.06137%2011.129C4.97954%2011.3798%204.97954%2011.83%205.06137%2012.0808C5.1761%2012.4325%205.35634%2012.6117%205.71679%2012.9701Z'%20stroke='white'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.6387%2011.6049C10.6387%2012.4526%2011.3259%2013.1398%2012.1736%2013.1398C13.0213%2013.1398%2013.7085%2012.4526%2013.7085%2011.6049C13.7085%2010.7572%2013.0213%2010.07%2012.1736%2010.07C11.3259%2010.07%2010.6387%2010.7572%2010.6387%2011.6049Z'%20stroke='white'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e"
+                    ]
+                },
+                "fields": [
+                    {
+                        "name": "apikey",
+                        "type": "text",
+                        "label": "API Key",
+                        "value": "manoj jadhav",
+                        "infoIcon": "data:image/svg+xml,%3csvg%20width='22'%20height='22'%20viewBox='0%200%2022%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20clip-path='url(%23clip0_601_1938)'%3e%3cpath%20d='M10.5413%2017.4166C13.832%2017.4166%2016.4997%2014.749%2016.4997%2011.4583C16.4997%208.16758%2013.832%205.49994%2010.5413%205.49994C7.25064%205.49994%204.58301%208.16758%204.58301%2011.4583C4.58301%2014.749%207.25064%2017.4166%2010.5413%2017.4166Z'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%208.81015V11.4583'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%2014.1064H10.5491'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_601_1938'%3e%3crect%20width='22'%20height='22'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e",
+                        "placeholder": "Type something"
+                    },
+                    {
+                        "name": "encoding",
+                        "type": "select",
+                        "label": "Encoding",
+                        "value": "Linear16",
+                        "options": [
+                            "Linear16",
+                            "gpt-4",
+                            "gemini"
+                        ]
+                    },
+                    {
+                        "name": "sample_rate",
+                        "type": "select",
+                        "label": "Sample Rate",
+                        "value": "8000",
+                        "options": [
+                            "8000",
+                            "7000",
+                            "6000"
+                        ]
+                    },
+                    {
+                        "name": "endpointing",
+                        "type": "select",
+                        "label": "End Pointing",
+                        "value": "1000",
+                        "options": [
+                            "1000",
+                            "700",
+                            "500"
+                        ]
+                    },
+                    {
+                        "name": "model",
+                        "type": "select",
+                        "label": "Model",
+                        "value": "Nova-2",
+                        "options": [
+                            "Nova-2",
+                            "gpt-4",
+                            "gemini"
+                        ]
+                    },
+                    {
+                        "name": "interim_results",
+                        "type": "select",
+                        "label": "Interim Results",
+                        "value": true,
+                        "options": [
+                            true,
+                            false
+                        ]
+                    },
+                    {
+                        "name": "smart_format",
+                        "type": "select",
+                        "label": "Smart Format",
+                        "value": true,
+                        "options": [
+                            true,
+                            false
+                        ]
+                    }
+                ],
+                "nodeIcon": "/src/assets/componentmenuicon/Deepgram.svg",
+                "playIcon": "data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M8%207.00002L16%2012.1429L8%2017.2857L8%207.00002Z'%20stroke='%23B8B9C1'%20stroke-width='1.28'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e",
+                "description": "Generates text using Deepgram LLMs."
+            },
+            "type": "custom",
+            "measured": {
+                "width": 249,
+                "height": 627
+            },
+            "nodetype": "speech_to_text",
+            "position": {
+                "x": 50,
+                "y": 50
+            },
+            "selected": true
+        },
+        {
+            "id": "8c19deb7-cc6e-4ecf-aea1-13be521383c1",
+            "data": {
+                "title": "Google TTS",
+                "bottom": {
+                    "text": "Text to Speech",
+                    "icons": [
+                        "data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M17.3125%2017.3124L15.25%2015.2499M11.1251%2017.9999H9.19788C8.42932%2017.9999%208.04445%2017.9999%207.75061%2017.8502C7.49189%2017.7184%207.28169%2017.5078%207.14987%2017.2491C7%2016.955%207%2016.5701%207%2015.8001V9.20007C7%208.43%207%208.04468%207.14987%207.75055C7.28169%207.49183%207.49189%207.28163%207.75061%207.14981C8.04474%206.99994%208.43006%206.99994%209.20013%206.99994H15.8001C16.5702%206.99994%2016.9547%206.99994%2017.2488%207.1498C17.5076%207.28163%2017.7185%207.49183%2017.8503%207.75055C18%208.04439%2018%208.42925%2018%209.19781V11.1251M13.5312%2015.9374C12.2023%2015.9374%2011.125%2014.8601%2011.125%2013.5312C11.125%2012.2023%2012.2023%2011.1249%2013.5312%2011.1249C14.8602%2011.1249%2015.9375%2012.2023%2015.9375%2013.5312C15.9375%2014.8601%2014.8602%2015.9374%2013.5312%2015.9374Z'%20stroke='%23B8B9C1'%20stroke-width='1.375'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e",
+                        "data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M5.71679%2012.9701C7.08244%2014.3277%209.4641%2016.2096%2012.1737%2016.2096C14.8834%2016.2096%2017.2646%2014.3277%2018.6303%2012.9701C18.9904%2012.612%2019.1711%2012.4324%2019.2858%2012.0808C19.3676%2011.83%2019.3676%2011.3798%2019.2858%2011.129C19.1711%2010.7774%2018.9904%2010.5978%2018.6302%2010.2397C17.2646%208.882%2014.8834%207.00012%2012.1737%207.00012C9.4641%207.00012%207.08244%208.88201%205.71679%2010.2397C5.35634%2010.598%205.1761%2010.7773%205.06137%2011.129C4.97954%2011.3798%204.97954%2011.83%205.06137%2012.0808C5.1761%2012.4325%205.35634%2012.6117%205.71679%2012.9701Z'%20stroke='white'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.6387%2011.6049C10.6387%2012.4526%2011.3259%2013.1398%2012.1736%2013.1398C13.0213%2013.1398%2013.7085%2012.4526%2013.7085%2011.6049C13.7085%2010.7572%2013.0213%2010.07%2012.1736%2010.07C11.3259%2010.07%2010.6387%2010.7572%2010.6387%2011.6049Z'%20stroke='white'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e"
+                    ]
+                },
+                "fields": [
+                    {
+                        "name": "language",
+                        "type": "select",
+                        "label": "Select Language",
+                        "value": "English(United States)",
+                        "options": [
+                            "English(United States)",
+                            "Hindi",
+                            "English"
+                        ],
+                        "infoIcon": "data:image/svg+xml,%3csvg%20width='22'%20height='22'%20viewBox='0%200%2022%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20clip-path='url(%23clip0_601_1938)'%3e%3cpath%20d='M10.5413%2017.4166C13.832%2017.4166%2016.4997%2014.749%2016.4997%2011.4583C16.4997%208.16758%2013.832%205.49994%2010.5413%205.49994C7.25064%205.49994%204.58301%208.16758%204.58301%2011.4583C4.58301%2014.749%207.25064%2017.4166%2010.5413%2017.4166Z'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%208.81015V11.4583'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%2014.1064H10.5491'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_601_1938'%3e%3crect%20width='22'%20height='22'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e"
+                    },
+                    {
+                        "name": "audio_device_profile",
+                        "type": "select",
+                        "label": "Audio Device Profile",
+                        "value": "English",
+                        "options": [
+                            "jhdag",
+                            "Hindi",
+                            "English"
+                        ],
+                        "infoIcon": "data:image/svg+xml,%3csvg%20width='22'%20height='22'%20viewBox='0%200%2022%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20clip-path='url(%23clip0_601_1938)'%3e%3cpath%20d='M10.5413%2017.4166C13.832%2017.4166%2016.4997%2014.749%2016.4997%2011.4583C16.4997%208.16758%2013.832%205.49994%2010.5413%205.49994C7.25064%205.49994%204.58301%208.16758%204.58301%2011.4583C4.58301%2014.749%207.25064%2017.4166%2010.5413%2017.4166Z'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%208.81015V11.4583'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%2014.1064H10.5491'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_601_1938'%3e%3crect%20width='22'%20height='22'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e"
+                    },
+                    {
+                        "name": "voice",
+                        "type": "select",
+                        "label": "Voice",
+                        "value": "male",
+                        "options": [
+                            "male",
+                            "female",
+                            "other"
+                        ]
+                    },
+                    {
+                        "name": "speed",
+                        "type": "slider",
+                        "label": "Speed",
+                        "value": 24,
+                        "infoIcon": "data:image/svg+xml,%3csvg%20width='22'%20height='22'%20viewBox='0%200%2022%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20clip-path='url(%23clip0_601_1938)'%3e%3cpath%20d='M10.5413%2017.4166C13.832%2017.4166%2016.4997%2014.749%2016.4997%2011.4583C16.4997%208.16758%2013.832%205.49994%2010.5413%205.49994C7.25064%205.49994%204.58301%208.16758%204.58301%2011.4583C4.58301%2014.749%207.25064%2017.4166%2010.5413%2017.4166Z'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%208.81015V11.4583'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%2014.1064H10.5491'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_601_1938'%3e%3crect%20width='22'%20height='22'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e"
+                    },
+                    {
+                        "name": "pitch",
+                        "type": "slider",
+                        "label": "Pitch",
+                        "value": 82,
+                        "infoIcon": "data:image/svg+xml,%3csvg%20width='22'%20height='22'%20viewBox='0%200%2022%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20clip-path='url(%23clip0_601_1938)'%3e%3cpath%20d='M10.5413%2017.4166C13.832%2017.4166%2016.4997%2014.749%2016.4997%2011.4583C16.4997%208.16758%2013.832%205.49994%2010.5413%205.49994C7.25064%205.49994%204.58301%208.16758%204.58301%2011.4583C4.58301%2014.749%207.25064%2017.4166%2010.5413%2017.4166Z'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%208.81015V11.4583'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%2014.1064H10.5491'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_601_1938'%3e%3crect%20width='22'%20height='22'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e"
+                    }
+                ],
+                "nodeIcon": "/src/assets/componentmenuicon/Google_TTS.svg",
+                "playIcon": "data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M8%207.00002L16%2012.1429L8%2017.2857L8%207.00002Z'%20stroke='%23B8B9C1'%20stroke-width='1.28'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e",
+                "description": "Generates speech using Google TTS."
+            },
+            "type": "custom",
+            "measured": {
+                "width": 230,
+                "height": 481
+            },
+            "nodetype": "text_to_speech",
+            "position": {
+                "x": 750,
+                "y": 150
+            },
+            "selected": false
+        },
+        {
+            "id": "168e289c-085d-43ea-8320-d86ba95df5b9",
+            "data": {
+                "title": "Open AI",
+                "bottom": {
+                    "text": "Language Learning Model",
+                    "icons": [
+                        "data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M17.3125%2017.3124L15.25%2015.2499M11.1251%2017.9999H9.19788C8.42932%2017.9999%208.04445%2017.9999%207.75061%2017.8502C7.49189%2017.7184%207.28169%2017.5078%207.14987%2017.2491C7%2016.955%207%2016.5701%207%2015.8001V9.20007C7%208.43%207%208.04468%207.14987%207.75055C7.28169%207.49183%207.49189%207.28163%207.75061%207.14981C8.04474%206.99994%208.43006%206.99994%209.20013%206.99994H15.8001C16.5702%206.99994%2016.9547%206.99994%2017.2488%207.1498C17.5076%207.28163%2017.7185%207.49183%2017.8503%207.75055C18%208.04439%2018%208.42925%2018%209.19781V11.1251M13.5312%2015.9374C12.2023%2015.9374%2011.125%2014.8601%2011.125%2013.5312C11.125%2012.2023%2012.2023%2011.1249%2013.5312%2011.1249C14.8602%2011.1249%2015.9375%2012.2023%2015.9375%2013.5312C15.9375%2014.8601%2014.8602%2015.9374%2013.5312%2015.9374Z'%20stroke='%23B8B9C1'%20stroke-width='1.375'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e",
+                        "data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M5.71679%2012.9701C7.08244%2014.3277%209.4641%2016.2096%2012.1737%2016.2096C14.8834%2016.2096%2017.2646%2014.3277%2018.6303%2012.9701C18.9904%2012.612%2019.1711%2012.4324%2019.2858%2012.0808C19.3676%2011.83%2019.3676%2011.3798%2019.2858%2011.129C19.1711%2010.7774%2018.9904%2010.5978%2018.6302%2010.2397C17.2646%208.882%2014.8834%207.00012%2012.1737%207.00012C9.4641%207.00012%207.08244%208.88201%205.71679%2010.2397C5.35634%2010.598%205.1761%2010.7773%205.06137%2011.129C4.97954%2011.3798%204.97954%2011.83%205.06137%2012.0808C5.1761%2012.4325%205.35634%2012.6117%205.71679%2012.9701Z'%20stroke='white'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.6387%2011.6049C10.6387%2012.4526%2011.3259%2013.1398%2012.1736%2013.1398C13.0213%2013.1398%2013.7085%2012.4526%2013.7085%2011.6049C13.7085%2010.7572%2013.0213%2010.07%2012.1736%2010.07C11.3259%2010.07%2010.6387%2010.7572%2010.6387%2011.6049Z'%20stroke='white'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e"
+                    ]
+                },
+                "fields": [
+                    {
+                        "name": "apikey",
+                        "type": "text",
+                        "label": "API Key",
+                        "value": "manoj",
+                        "infoIcon": "data:image/svg+xml,%3csvg%20width='22'%20height='22'%20viewBox='0%200%2022%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20clip-path='url(%23clip0_601_1938)'%3e%3cpath%20d='M10.5413%2017.4166C13.832%2017.4166%2016.4997%2014.749%2016.4997%2011.4583C16.4997%208.16758%2013.832%205.49994%2010.5413%205.49994C7.25064%205.49994%204.58301%208.16758%204.58301%2011.4583C4.58301%2014.749%207.25064%2017.4166%2010.5413%2017.4166Z'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%208.81015V11.4583'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%2014.1064H10.5491'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_601_1938'%3e%3crect%20width='22'%20height='22'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e",
+                        "placeholder": "Type something"
+                    },
+                    {
+                        "name": "model",
+                        "type": "select",
+                        "label": "Model",
+                        "value": "Linear16",
+                        "options": [
+                            "Linear16",
+                            "gpt-4",
+                            "gemini"
+                        ]
+                    },
+                    {
+                        "name": "system_prompt",
+                        "type": "textarea",
+                        "label": "System Prompt",
+                        "value": "prompt",
+                        "infoIcon": "data:image/svg+xml,%3csvg%20width='22'%20height='22'%20viewBox='0%200%2022%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cg%20clip-path='url(%23clip0_601_1938)'%3e%3cpath%20d='M10.5413%2017.4166C13.832%2017.4166%2016.4997%2014.749%2016.4997%2011.4583C16.4997%208.16758%2013.832%205.49994%2010.5413%205.49994C7.25064%205.49994%204.58301%208.16758%204.58301%2011.4583C4.58301%2014.749%207.25064%2017.4166%2010.5413%2017.4166Z'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%208.81015V11.4583'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M10.542%2014.1064H10.5491'%20stroke='%23B8B9C1'%20stroke-width='1.44444'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/g%3e%3cdefs%3e%3cclipPath%20id='clip0_601_1938'%3e%3crect%20width='22'%20height='22'%20fill='white'/%3e%3c/clipPath%3e%3c/defs%3e%3c/svg%3e",
+                        "placeholder": "Type something"
+                    },
+                    {
+                        "name": "document_url",
+                        "type": "file",
+                        "label": "Train by Document",
+                        "value": "http://1msg.1point1.in:3001/media/uploads/22d663aa-585c-4f8e-ba20-ec67016d46b7.svg",
+                        "message": "Upload the document in .pdf, .doc format.",
+                        "fileIcon": "data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M6%2014.9999V15.7499C6%2016.9926%207.00736%2017.9999%208.25%2017.9999H15.75C16.9927%2017.9999%2018%2016.9926%2018%2015.7499V14.9999M15%208.99994L12%205.99994M12%205.99994L9%208.99994M12%205.99994L12%2014.9999'%20stroke='%23B8B9C1'%20stroke-width='1.5'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e"
+                    }
+                ],
+                "nodeIcon": "/src/assets/componentmenuicon/Chatgpt.svg",
+                "playIcon": "data:image/svg+xml,%3csvg%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M8%207.00002L16%2012.1429L8%2017.2857L8%207.00002Z'%20stroke='%23B8B9C1'%20stroke-width='1.28'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3c/svg%3e",
+                "description": "Generates text using OpenAI LLMs."
+            },
+            "type": "custom",
+            "measured": {
+                "width": 260,
+                "height": 496
+            },
+            "nodetype": "llm_models",
+            "position": {
+                "x": 400,
+                "y": 100
+            },
+            "selected": false
+        }
+    ]
+}
