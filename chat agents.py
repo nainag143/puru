@@ -1,3 +1,32 @@
+################################     URLS    #######################################################
+
+
+  path('agents/user/<int:user_id>/', views.get_agents_by_user, name='get_agents_by_user'),
+
+    # Get chat history by user_id and agent_id
+    path('chat-history/user/<int:user_id>/agent/<int:agent_id>/', views.get_chat_history_by_user_agent, name='get_chat_history_by_user_agent'),
+
+    # Get contacts by agent_id and user_id
+    path('contacts/agent/<int:agent_id>/user/<int:user_id>/', views.get_contacts_by_agent_user, name='get_contacts_by_agent_user'),
+
+    # Get chat history by contact_id
+    path('chat-history/contact/<int:contact_id>/', views.get_chat_history_by_contact, name='get_chat_history_by_contact'),
+
+    # Get contacts by agent_id and user_id (alternate)
+    path('contacts-by-agent-user/<int:agent_id>/<int:user_id>/', views.get_contacts_by_agent_and_user, name='get_contacts_by_agent_and_user'),
+
+    # Delete agent by id
+    path('agents/<int:agent_id>/delete/', views.delete_agent_by_id, name='delete_agent_by_id'),
+
+##############################URLS##############################################################
+
+
+
+
+
+
+
+
 @csrf_exempt
 def get_chat_agents_by_user(request, user_id):
     if request.method == "GET":
