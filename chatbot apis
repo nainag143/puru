@@ -1,0 +1,217 @@
+# Get agents by user
+ 
+curl --location --request GET 'http://1msg.1point1.in:3001/api/chat/bot/agents/user/1/' \
+
+--header 'Content-Type: application/json' \
+
+--data '{
+
+  "created_by": "123",
+
+  "dialer": "auto",
+
+  "flow_type": "sales",
+
+  "agent_name": "Updated Agent Name",
+
+  "agent_type": "AI",
+
+  "sts_model_id": "sts123",
+
+  "sts_model_perms": ["read", "write"],
+
+  "llm_model_id": "gpt-4",
+
+  "llm_model_param": {"temperature": 0.7, "max_tokens": 500},
+
+  "llm_model_document": "doc001",
+
+  "tts_model_id": "tts001",
+
+  "tts_model_perm": ["read"]
+
+}
+
+'
+ 
+Get chat history by user_id and agent_id
+ 
+curl --location --request GET 'http://1msg.1point1.in:3001/api/chat/bot/chat-history/user/5/agent/10/' \
+
+--header 'Content-Type: application/json' \
+
+--data '{
+
+  "created_by": "123",
+
+  "dialer": "auto",
+
+  "flow_type": "sales",
+
+  "agent_name": "Updated Agent Name",
+
+  "agent_type": "AI",
+
+  "sts_model_id": "sts123",
+
+  "sts_model_perms": ["read", "write"],
+
+  "llm_model_id": "gpt-4",
+
+  "llm_model_param": {"temperature": 0.7, "max_tokens": 500},
+
+  "llm_model_document": "doc001",
+
+  "tts_model_id": "tts001",
+
+  "tts_model_perm": ["read"]
+
+}
+
+'
+ 
+# Get contacts by agent_id and user_id
+ 
+curl --location --request GET 'http://1msg.1point1.in:3001/api/chat/bot/contacts/agent/15/user/25/' \
+
+--header 'Content-Type: application/json' \
+
+--data '{
+
+  "created_by": "123",
+
+  "dialer": "auto",
+
+  "flow_type": "sales",
+
+  "agent_name": "Updated Agent Name",
+
+  "agent_type": "AI",
+
+  "sts_model_id": "sts123",
+
+  "sts_model_perms": ["read", "write"],
+
+  "llm_model_id": "gpt-4",
+
+  "llm_model_param": {"temperature": 0.7, "max_tokens": 500},
+
+  "llm_model_document": "doc001",
+
+  "tts_model_id": "tts001",
+
+  "tts_model_perm": ["read"]
+
+}
+
+'
+ 
+# Get chat history by contact_id
+ 
+curl --location --request GET 'http://1msg.1point1.in:3001/api/chat/bot/chat-history/contact/123/' \
+
+--header 'Content-Type: application/json' \
+
+--data '{
+
+  "created_by": "123",
+
+  "dialer": "auto",
+
+  "flow_type": "sales",
+
+  "agent_name": "Updated Agent Name",
+
+  "agent_type": "AI",
+
+  "sts_model_id": "sts123",
+
+  "sts_model_perms": ["read", "write"],
+
+  "llm_model_id": "gpt-4",
+
+  "llm_model_param": {"temperature": 0.7, "max_tokens": 500},
+
+  "llm_model_document": "doc001",
+
+  "tts_model_id": "tts001",
+
+  "tts_model_perm": ["read"]
+
+}
+
+'
+ 
+# Get contacts by agent_id and user_id (alternate)
+
+curl --location --request GET 'http://1msg.1point1.in:3001/api/chat/bot/contacts-by-agent-user/5/10/' \
+
+--header 'Content-Type: application/json' \
+
+--data '{
+
+  "created_by": "123",
+
+  "dialer": "auto",
+
+  "flow_type": "sales",
+
+  "agent_name": "Updated Agent Name",
+
+  "agent_type": "AI",
+
+  "sts_model_id": "sts123",
+
+  "sts_model_perms": ["read", "write"],
+
+  "llm_model_id": "gpt-4",
+
+  "llm_model_param": {"temperature": 0.7, "max_tokens": 500},
+
+  "llm_model_document": "doc001",
+
+  "tts_model_id": "tts001",
+
+  "tts_model_perm": ["read"]
+
+}
+
+'
+ 
+ 
+DELETE API CURL
+ 
+curl --location --request DELETE 'http://1msg.1point1.in:3001/api/chat/bot/agents/15/delete/' \
+
+--header 'Content-Type: application/json' \
+
+--data '{
+
+  "created_by": "123",
+
+  "dialer": "auto",
+
+  "flow_type": "sales",
+
+  "agent_name": "Updated Agent Name",
+
+  "agent_type": "AI",
+
+  "sts_model_id": "sts123",
+
+  "sts_model_perms": ["read", "write"],
+
+  "llm_model_id": "gpt-4",
+
+  "llm_model_param": {"temperature": 0.7, "max_tokens": 500},
+
+  "llm_model_document": "doc001",
+
+  "tts_model_id": "tts001",
+
+  "tts_model_perm": ["read"]
+
+}
+
+'
+ 
