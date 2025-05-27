@@ -1,0 +1,453 @@
+import os
+import time
+import torch
+import datetime
+import logging
+import hashlib
+import pymysql
+import json
+import pandas as pd
+from datetime import datetime, timedelta
+import pytz # Import pytz for timezone handling
+
+from django.shortcuts import render
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.core.cache import cache
+
+# Langchain and other imports
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
+import chromadb
+from uuid import uuid4
+from langchain_chroma import Chroma
+from langchain_community.document_loaders import PyPDFLoader
+from transformers import GPT2Tokenizer
+from openai import OpenAI
+
+# --- Configuration (Move these to Django settings or environment variables) ---
+# Ensure PyTorch is using GPU if available
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+# print(f"\nUsing device: {DEVICE}\n") # Removed print for snippet clarity
+
+# File Paths (Ideally, manage these through Django's MEDIA_ROOT or similar)
+TEXT_FILE_PATH = "/root/Junaid/3_chatBot/chatBot_8004/media/Docs_for_GPT_Model/output.txt"
+PDF_FILE_PATH = "/root/Junaid/3_chatBot/chatBot_8004/media/Docs_for_GPT_Model/Motilal Oswal Services Fund_and_Services_FAQ_2_doc_merged_2025_05_16_V3.pdf"
+
+# Set OpenAI API key (CRITICAL: Use environment variables in production)
+api_key = os.getenv("OPENAI_API_KEY", "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")
+os.environ["TOKENIZERS_PARALLELISM"] = "false" # Suppress HuggingFace tokenizer warning
+openai_client=OpenAI(api_key=api_key)
+
+# Database Configuration (CRITICAL: Use environment variables in production)
+DB_CONFIG = {
+    "host": "127.0.0.1",
+    "user": "root",
+    "passwd": "passw0rd",
+    "database": "voice_bot"
+}
+
+# Chatbot specific configurations
+MAX_TOKENS_CONTEXT = 800
+CONVERSATION_HISTORY_LIMIT = 5 # Keep last N exchanges (user + assistant)
+NFO_LAST_DATE = datetime(2025, 6, 3, 20, 0, 0) # June 3rd, 2025, 8:00 PM IST
+
+# Define IST timezone
+IST = pytz.timezone('Asia/Kolkata')
+
+# --- Global Initialization (Run once on server start) ---
+# This part is fine to run globally as it loads static resources.
+# (Existing loading of text, PDF, embeddings, ChromaDB, tokenizer would be here)
+# ... [Keeping out for brevity as requested, assume these are correctly initialized] ...
+
+# --- Utility Functions ---
+# (Existing truncate_context and get_db_connection functions would be here)
+# ... [Keeping out for brevity as requested, assume these are correctly initialized] ...
+
+# --- Conversation Management with Django Cache ---
+# (Existing update_conversation, get_conversation_history, delete_conversation_history functions would be here)
+# ... [Keeping out for brevity as requested, assume these are correctly initialized] ...
+
+
+# --- API Views ---
+
+class ChatBot_View(APIView):
+    def post(self, request):
+        question = str(request.data.get('question', '')).strip()
+        channel_id = str(request.data.get('channel_id', '')).strip()
+        phonenumber = str(request.data.get('phonenumber', '')).strip()
+        uuid = str(request.data.get('uuid', '')).strip()
+        call_disconnect = request.data.get('call_disconnect', False) # Default to False
+
+        if not uuid:
+            return Response({"error": "UUID is required for conversation tracking."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # --- Handle Call Disconnect ---
+        if call_disconnect:
+            logging.info(f"Call disconnected for UUID: {uuid}. Processing disposition.")
+            conn = None # Initialize conn to None for finally block
+            try:
+                conn = get_db_connection()
+                if not conn:
+                    raise Exception("Failed to connect to database for disposition.")
+
+                # Retrieve conversation from DB (if you store full conversations there)
+                conversation_df = pd.read_sql(
+                    f"""
+                    SELECT
+                        id,
+                        disposition,
+                        uuid,
+                        GROUP_CONCAT(CONCAT('Customer: ', question, ' || Bot: ', answer) SEPARATOR ' , ') AS all_conversation,
+                        schedule_date
+                    FROM your_table_name
+                    WHERE
+                        uuid = '{uuid}'
+                    GROUP BY uuid;
+                    """,
+                    conn
+                )
+
+                if not conversation_df.empty:
+                    conversation = conversation_df.iloc[0].to_dict()
+                    conversation_data = conversation['all_conversation']
+                    conversation_id = conversation['id']
+
+                    # --- Get Disposition from OpenAI ---
+                    disposition_prompt = f"""
+                    You are an expert at analyzing customer conversations. Given a dialogue between a customer and a bot, your task is to select the most appropriate disposition from the list below that best reflects the customer's intent at the end of the conversation.
+
+                    List of Dispositions:
+                    1. Meeting Scheduled
+                    2. Interested
+                    3. Not Interested
+                    4. Call Back
+                    5. Do Not Call Me
+                    6. Remove My Number
+                    7. DND
+                    8. DNC
+                    9. Stop Calling
+                    10. I Will Complain
+
+                    Instructions:
+                    - Analyze the entire conversation carefully.
+                    - Focus on the customer’s final intent or sentiment.
+                    - Select and return only the disposition name from the list (e.g., "Interested", "Meeting Scheduled").
+                    - Do NOT include numbering, quotes, markdown symbols like **, or any explanation — just the disposition name.
+
+                    Conversation:
+                    {conversation_data}
+
+                    Your Response:
+                    """
+                    response_disposition = openai_client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "You are a helpful assistant for classifying customer call dispositions."},
+                            {"role": "user", "content": disposition_prompt}
+                        ],
+                        max_tokens=50, # Shorter max_tokens for disposition
+                        temperature=0.7,
+                        top_p=0.5
+                    )
+                    disposition = response_disposition.choices[0].message.content.strip()
+                    logging.info(f"UUID {uuid} - Predicted Disposition: {disposition}")
+
+                    schedule_date = None
+                    # --- Check for Meeting Scheduled and extract time ---
+                    if "Meeting Scheduled".lower() in disposition.lower():
+                        # Get current IST time for reference
+                        current_datetime_ist = datetime.now(IST)
+                        current_datetime_str = current_datetime_ist.strftime("%d/%m/%Y %I:%M %p")
+                        
+                        meeting_time_prompt = f"""
+                        You are an intelligent assistant skilled at analyzing customer conversations to schedule meetings. Your task is to extract the final confirmed meeting **date and time** between a customer and a bot.
+
+                        Guidelines:
+                        - Read the full conversation carefully.
+                        - Identify the **final meeting date and time** that both the customer and bot agree on.
+                        - If the customer says vague terms like "tomorrow", "day after", "next Monday", or just a time like "4 PM", use the following current date and time as the reference. **Always assume the customer is referring to IST (Indian Standard Time).**
+                        Current Date and Time (IST): {current_datetime_str}
+                        - Resolve such vague expressions into a full date and time accordingly, considering IST.
+                        - Return only one final confirmed meeting date and time in this exact format:
+                        "DD/MM/YYYY hh:mm AM/PM"
+                        - If no final date and time is confirmed, return:
+                        null
+
+                        Here is the conversation:
+                        {conversation_data}
+
+                        Return ONLY one of the following:
+                        1. A single line with date and time: "DD/MM/YYYY hh:mm AM/PM"
+                        2. null
+                        Do NOT include any extra words or explanation.
+                        """
+                        response_meeting_time = openai_client.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=[
+                                {"role": "system", "content": "You are a helpful assistant for extracting meeting times in IST."},
+                                {"role": "user", "content": meeting_time_prompt}
+                            ],
+                            max_tokens=50, # Shorter max_tokens for time extraction
+                            temperature=0.7,
+                            top_p=0.5
+                        )
+                        meeting_time_raw = response_meeting_time.choices[0].message.content.strip()
+                        if meeting_time_raw.lower() != "null":
+                            try:
+                                # Attempt to parse the date and time, handle errors
+                                parsed_dt_naive = datetime.strptime(meeting_time_raw, "%d/%m/%Y %I:%M %p")
+                                # Localize the naive datetime object to IST
+                                parsed_dt_ist = IST.localize(parsed_dt_naive)
+                                schedule_date = parsed_dt_ist.strftime("%Y-%m-%d %H:%M:%S")
+                                logging.info(f"UUID {uuid} - Extracted Meeting Time (IST): {meeting_time_raw}")
+                            except ValueError:
+                                logging.warning(f"UUID {uuid} - Failed to parse meeting time: {meeting_time_raw}. Check format or LLM output.")
+                                schedule_date = None
+                        else:
+                            logging.info(f"UUID {uuid} - No specific meeting time extracted.")
+
+                    # --- Update Database with Disposition and Schedule Date ---
+                    with conn.cursor() as cur:
+                        if schedule_date:
+                            update_query = """
+                                UPDATE your_table_name
+                                SET disposition = %s, schedule_date = %s
+                                WHERE id = %s;
+                            """
+                            cur.execute(update_query, (disposition, schedule_date, conversation_id))
+                        else:
+                            update_query = """
+                                UPDATE your_table_name
+                                SET disposition = %s
+                                WHERE id = %s;
+                            """
+                            cur.execute(update_query, (disposition, conversation_id))
+                        conn.commit()
+                        logging.info(f"UUID {uuid} - Database updated with disposition: {disposition} and schedule_date: {schedule_date}.")
+
+                else:
+                    logging.warning(f"UUID {uuid} - No conversation data found in DB to process for disposition.")
+
+            except Exception as e:
+                logging.error(f"Error during call disconnect processing for UUID {uuid}: {e}")
+            finally:
+                if conn:
+                    conn.close()
+                delete_conversation_history(uuid)
+                return Response({"question": "", "answer": "Call Disconnected"}, status=status.HTTP_200_OK)
+
+        # --- Handle Active Conversation ---
+        conversation_history = get_conversation_history(uuid)
+
+        if "hello" in question.lower() and conversation_history:
+            answer = "Hi there! I'm here. How can I assist you further?"
+        else:
+            context_docs_scores = []
+            if db:
+                context_docs_scores = db.similarity_search_with_relevance_scores(question, k=1)
+            
+            context = ""
+            if context_docs_scores:
+                context = "".join(doc.page_content for doc, _ in context_docs_scores)
+                context = truncate_context(context)
+
+            # Prepare dynamic prompt variables - ensure these are IST
+            current_datetime_ist = datetime.now(IST)
+            
+            # Calculate tomorrow's and day after tomorrow's date
+            tomorrow_ist = current_datetime_ist + timedelta(days=1)
+            day_after_tomorrow_ist = current_datetime_ist + timedelta(days=2)
+
+            current_date_str = current_datetime_ist.strftime("%d-%m-%Y")
+            time_current_str = current_datetime_ist.strftime("%I:%M %p")
+            current_day_name = current_datetime_ist.strftime("%A")
+
+            # --- Function to get the date of the next specific weekday ---
+            def get_next_weekday_date(start_date, weekday_target):
+                """
+                Calculates the date of the next occurrence of a specific weekday,
+                always looking forward (if today is the target day, it returns next week's occurrence).
+                weekday_target: 0 for Monday, 1 for Tuesday, ..., 6 for Sunday.
+                """
+                days_ahead = weekday_target - start_date.weekday()
+                if days_ahead <= 0: # Target day already passed this week or is today
+                    days_ahead += 7 # Move to next week
+                return start_date + timedelta(days=days_ahead)
+
+            # Get dates for next upcoming Monday, Tuesday, etc.
+            next_monday_dt = get_next_weekday_date(current_datetime_ist, 0)
+            next_tuesday_dt = get_next_weekday_date(current_datetime_ist, 1)
+            next_wednesday_dt = get_next_weekday_date(current_datetime_ist, 2)
+            next_thursday_dt = get_next_weekday_date(current_datetime_ist, 3)
+            next_friday_dt = get_next_weekday_date(current_datetime_ist, 4)
+            next_saturday_dt = get_next_weekday_date(current_datetime_ist, 5)
+            # Sunday is 6, explicitly excluded from scheduling, so no 'next_sunday_dt' needed in prompt.
+
+            qna_prompt = f"""
+            You are an outbound sales agent named Jessica, calling on behalf of Motilal Oswal to introduce a new investment opportunity. Your goal is to spark interest, explain the benefits of the investment, and schedule a meeting. Your responses should be confident, proactive, and persuasive, aimed at generating interest and moving the conversation towards scheduling a meeting. Do not act like a customer service agent. When asked, "Why are you calling me?" do not provide generic answers. Instead, clearly explain the purpose of your call and how the opportunity benefits the customer.
+
+            Refer this context to answer: {context}
+
+            The conversation should move forward without restarting once the customer confirms a meeting time and date.
+
+            Ensure that responses are naturally aligned with the ongoing discussion, maintaining context and flow. If the conversation exceeds token limits, summarize previous exchanges or trim older messages to retain the most relevant context. Do not prompt the user for information unless necessary, and allow the conversation to flow organically.
+
+            **Current System Time (IST) Reference Points (for accurate date/day calculation by you):**
+            Current Date: {current_date_str} ({current_day_name})
+            Current Time: {time_current_str}
+            Tomorrow's Date: {tomorrow_ist.strftime("%d-%m-%Y")} ({tomorrow_ist.strftime("%A")})
+            Day After Tomorrow's Date: {day_after_tomorrow_ist.strftime("%d-%m-%Y")} ({day_after_tomorrow_ist.strftime("%A")})
+            Next Monday: {next_monday_dt.strftime("%d-%m-%Y")}
+            Next Tuesday: {next_tuesday_dt.strftime("%d-%m-%Y")}
+            Next Wednesday: {next_wednesday_dt.strftime("%d-%m-%Y")}
+            Next Thursday: {next_thursday_dt.strftime("%d-%m-%Y")}
+            Next Friday: {next_friday_dt.strftime("%d-%m-%Y")}
+            Next Saturday: {next_saturday_dt.strftime("%d-%m-%Y")}
+
+            Follow these structured steps:
+
+            1️⃣ Warm Introduction: Greet the customer {current_datetime_ist.strftime("%I:%M %p")}, introduce yourself confidently, and directly state the fund’s name and its purpose in the first message.
+            Example: "Good afternoon! I’m Jessica, calling from Motilal Oswal to introduce our new investment opportunity. This fund investment to maximize growth by leveraging market momentum. Would you be interested in learning more about its benefits?"
+            If the customer interrupts at the beginning of the call, proceed with answering their question and do not repeat your introduction.
+
+            2️⃣ Engagement & Value Proposition: Highlight the fund's key benefits concisely and persuasively.
+
+            3️⃣ Objection Handling: Address concerns in a natural, non-repetitive way. Avoid pushing too hard if they firmly decline.
+
+            4️⃣ Single-Word Response Management: If the user says "Okay" or "Hmm," prompt them toward engagement without looping.
+
+            5️⃣ Meeting Scheduling Guideline:
+            **CRITICAL: Strictly adhere to the following rules for meeting scheduling. Use the provided "Current System Time (IST) Reference Points" block to correctly infer dates and days.**
+
+            Meeting Timezone:
+                - All scheduling must be in Indian Standard Time (IST).
+
+            Meeting Scheduling Date Range:
+                - Schedule meeting only before {NFO_LAST_DATE.strftime("%dth %B %Y %I:%M %p")} IST.
+                - If a proposed meeting date is **after** {NFO_LAST_DATE.strftime("%dth %B %Y %I:%M %p")} IST, respond with: "We do not schedule meetings after the NFO ends, which is {NFO_LAST_DATE.strftime("%dth %B %Y")}."
+
+            Working Hours/Days:
+            - We schedule meetings from **Monday to Saturday only.**
+            - Working hours are strictly between **9:00 AM and 8:00 PM IST.**
+            - Sundays are not working days under any circumstances.
+
+            Sunday Restriction (Explicit & Implicit):
+            - If the user explicitly requests Sunday (e.g., "Sunday," "this Sunday"): "We do not schedule meetings on Sundays. Please choose a day from Monday to Saturday between 9:00 AM and 8:00 PM IST."
+            - If a relative term like "tomorrow", "day after tomorrow", or "next [weekday]" implies a Sunday based on the "Current System Time (IST) Reference Points" block, you **must** respond with: "Sorry, we do not schedule meetings on Sundays. Please pick a different day, Monday to Saturday."
+
+            Time Validation Rules:
+            - If the proposed time is **before the `Current Time` on the same day (IST)**: "We can’t schedule meetings in the past. The earliest available time is {(current_datetime_ist + timedelta(minutes=30)).strftime("%I:%M %p")} IST today." (Ensure suggested time is always at least 30 mins from `Current Time` IST).
+            - If the proposed time is **outside 9:00 AM–8:00 PM IST**: "Please choose a time between 9:00 AM and 8:00 PM IST."
+
+            Fund Performance Queries:
+            - "While past performance doesn't guarantee future results, this fund follows a strategy that aims to capitalize on market momentum. For specific projections, I'd recommend discussing with our financial experts in our scheduled meeting."
+
+            ✅ Always offer alternatives if a requested slot is unavailable. Never use negative language like “can’t”, “unable”, “fully booked”.
+
+            2. Fund Introduction Before Scheduling
+            Do not say “if you're interested” before explaining. Instead, introduce directly:
+            "This fund is designed to maximize growth by leveraging market momentum."
+
+            3. Date and Time Formatting (Strict):
+            When confirming or proposing a meeting, always use the format: "**DD-MM-YYYY HH:MM AM/PM IST**".
+            Example: "Great! Next Monday, {next_monday_dt.strftime("%d-%m-%Y")}, I can schedule a meeting for you at 03:00 PM IST. Does that work for you?"
+
+            4. Exact Scheduling Prompt:
+            "To schedule a meeting, please let me know a date and time that works best for you. What date and time would you prefer?"
+
+            5. Handling Immediate Call Requests:
+            - If immediate call requested and within working hours: "Sure! I'll arrange a call for you right away." or "Got it! I'll schedule a call for you at {(current_datetime_ist + timedelta(minutes=30)).strftime("%I:%M %p")} IST."
+            - If immediate call requested but outside working hours: "I'm sorry, but calls can only be scheduled between 9:00 AM and 8:00 PM IST. Could you choose a time within these hours?"
+
+            6️⃣ Call Closure:
+            If the customer declines twice or firmly refuses, say:
+            "I understand! Thank you for your time. Have a great day!"
+            Remain silent until they disconnect. Do not re-engage.
+
+            Conversation Guidelines:
+            - Start with introduction only once.
+            - No reintroductions after “Yes”.
+            - Keep benefits short, persuasive.
+            - Do not repeat objection responses.
+            - After “Yes,” assume confirmation and move forward.
+            - Avoid loops on “Hmm,” “Okay” – prompt for decisions.
+            - Always confirm date & time in DD-MM-YYYY and HH:MM AM/PM IST format.
+            - Once confirmed, thank the customer and give next steps.
+            - If user says “thank you,” “I’m done,” or ends, **do not prompt again. Wait silently.**
+            - Respond briefly (2–3 lines max), unless explanation is needed.
+            - If answer not in context, you may use external knowledge.
+            - Detect Hindi and switch to Hinglish if necessary.
+            - If the response includes the word "IT", replace it with either "I.T" or "I T".
+            - If the response includes "ITES", replace it with either "I.T.E.S" or "I T E S".
+            Do not output plain "IT" or "ITES" under any condition.
+
+            #Contextual Behavior:
+            - Retain full chat history. Do not reset between messages.
+            - Build logically on what was previously said.
+            - Never repeat full intro again after conversation has started.
+            - Wait for gratitude before fulfilling any follow-up request.
+
+            Do NOT say or imply that you are sending a calendar invite.
+            You are only confirming the meeting verbally in this conversation.
+            Do NOT say: "I’ve sent a calendar invite", "You’ll receive a calendar", "Check your email", or similar.
+            Instead, confirm with: "Great! I've noted that down. You'll receive a confirmation shortly from our team."
+
+            Final Note:
+            ⛔ Strictly restrict past date/time scheduling.
+            ⛔ No past appointments.
+            ✅ Minimum valid time = current time + 30 mins.
+            ✅ There is no lock in period for this NFO.
+            Last Date of NFO is {NFO_LAST_DATE.strftime("%d-%m-%Y")}.
+            """
+
+            # Append the current user message to the conversation history *before* calling the LLM
+            update_conversation(uuid, {"role": "user", "content": question})
+
+            # Retrieve the updated conversation history (last N exchanges for context)
+            chat_history_for_llm = get_conversation_history(uuid)
+
+            messages = [{"role": "system", "content": qna_prompt}] + chat_history_for_llm
+
+            try:
+                response_llm = openai_client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=messages,
+                    max_tokens=150,
+                    temperature=0.7,
+                    top_p=0.5,
+                )
+                answer = response_llm.choices[0].message.content.strip()
+            except Exception as e:
+                logging.error(f"OpenAI API error for UUID {uuid}: {e}")
+                answer = "I'm sorry, I'm having trouble connecting right now. Please try again in a moment."
+            
+            answer = answer.replace("IT", "I.T").replace("ITES", "I.T.E.S")
+
+            update_conversation(uuid, {"role": "assistant", "content": answer})
+
+        # --- Database Insertion for each turn ---
+        conn = None
+        try:
+            conn = get_db_connection()
+            if conn:
+                with conn.cursor() as cur:
+                    clean_question = question.replace("'", "''")
+                    clean_answer = answer.replace("'", "''")
+                    insert_query = f"""
+                        INSERT INTO your_table_name (question, answer, channelid, phonenumber, uuid, createddate)
+                        VALUES('{clean_question}' ,'{clean_answer}' ,'{channel_id}' ,'{phonenumber}' ,'{uuid}', NOW());
+                    """
+                    cur.execute(insert_query)
+                    conn.commit()
+                    logging.info(f"UUID {uuid} - Turn stored in DB. Question: '{question[:50]}...', Answer: '{answer[:50]}...'")
+            else:
+                logging.warning(f"UUID {uuid} - Could not connect to DB to store conversation turn.")
+        except Exception as e:
+            logging.error(f"Error inserting conversation turn into DB for UUID {uuid}: {e}")
+        finally:
+            if conn:
+                conn.close()
+
+        return Response({"question": question, "answer": answer}, status=status.HTTP_200_OK)
