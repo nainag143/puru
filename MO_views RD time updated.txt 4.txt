@@ -1,0 +1,668 @@
+from django.shortcuts import render
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.http import JsonResponse
+from rest_framework import status
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
+import chromadb
+from zoneinfo import ZoneInfo  # Replaces pytz
+import re
+from datetime import datetime, timedelta
+# import pytz # zoneinfo is preferred
+
+import logging
+from uuid import uuid4
+from langchain_chroma import Chroma
+from langchain_community.document_loaders import PyPDFLoader
+# from transformers import GPT2Tokenizer # Not used in provided snippet for this class
+from django.core.cache import cache
+import os
+# import pytz # Re-importing, ensure only one consistent way ZoneInfo or pytz
+from openai import OpenAI
+import time # Standard time module
+import torch
+# import datetime # Already imported from datetime import datetime, timedelta
+# import logging # Already imported
+from django.utils.decorators import method_decorator
+# from django.views.decorators.cache import never_cache
+# from django.core.cache import cache # Already imported
+import hashlib
+import pymysql
+import json
+import pandas as pd
+# from datetime import datetime # Already imported
+import sqlite3
+# import argparse # Not used in this snippet
+# import os # Already imported
+import sys
+# import time # Already imported
+
+from langchain_community.vectorstores import Chroma as LangchainChroma # Alias to avoid conflict if needed
+# from langchain_community.embeddings import HuggingFaceEmbeddings # Already imported
+# from transformers import AutoTokenizer # Not used in this snippet for LLM_INSTANCE directly here
+from vllm import SamplingParams # Assuming vllm setup is correct
+# from datetime import datetime, timedelta # Already imported
+# from zoneinfo import ZoneInfo # Already imported
+# import logging # Already imported
+
+# Assuming LLM_INSTANCE is correctly defined elsewhere and imported
+# from sales_app.llm_instance import LLM_INSTANCE
+# Mock LLM_INSTANCE if not available for standalone testing of this class method
+class MockLLM:
+    def __init__(self):
+        self.tokenizer = MockTokenizer()
+    def generate_stream(self, formatted_prompt, sampling_params):
+        # Mock stream generation
+        yield "LLM mock response token1 "
+        yield "LLM mock response token2"
+        yield True # finished
+
+class MockTokenizer:
+    def apply_chat_template(self, messages, tokenize, add_generation_prompt):
+        return "mocked_formatted_prompt"
+
+LLM_INSTANCE = MockLLM()
+
+
+# Ensure log directory exists
+os.makedirs("/root/BotHub_llm_model/llm_agent_project/motilal_app/logs", exist_ok=True)
+logging.basicConfig(filename="/root/BotHub_llm_model/llm_agent_project/motilal_app/logs/motilal.log",
+                    level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+
+# Ensure PyTorch is using GPU if available
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"\nUsing device: {device}\n")
+
+pdf_file = "/root/BotHub_llm_model/llm_agent_project/media/motilal_app/Motilal Oswal Services Fund_and_Services_FAQ_2_doc_merged_2025_05_16_V3.pdf"
+
+# Set OpenAI API key
+# api_key = "YOUR_OPENAI_API_KEY" # It's better to use environment variables for API keys
+# client = OpenAI(api_key=api_key)
+# For the purpose of this edit, client usage is outside the modified methods, assuming it's set up
+# os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+
+hf = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-mpnet-base-v2",
+    model_kwargs={'device': device},
+    encode_kwargs={'normalize_embeddings': True}
+)
+
+# Load the existing collection
+# Ensure the Chroma persist directory path is correct and accessible
+try:
+    db = LangchainChroma(collection_name="test-1", persist_directory="/root/BotHub_llm_model/llm_agent_project/motilal_app/MO_latest", embedding_function=hf)
+except Exception as e:
+    logging.error(f"Failed to load Chroma DB: {e}")
+    # Fallback or error handling for db initialization
+    db = None
+
+
+# --- Utility functions (assuming they are defined as in the original code) ---
+def update_conversation(uuid, history):
+    key = str(uuid)
+    conversation = cache.get(key, [])
+    conversation.append(history)
+    cache.set(key, conversation, timeout=None)
+
+def get_conversation_history(uuid):
+    return cache.get(str(uuid), [])
+
+def delete_conversation(uuid):
+    key = str(uuid)
+    logging.info(f"Deleted Conversation : {uuid}")
+    cache.delete(key)
+
+def connection():
+    try:
+        conn = pymysql.connect(
+            host="127.0.0.1",
+            user="root",
+            passwd="passw0rd", # Consider using environment variables or a config file
+            database="voice_bot"
+        )
+        return conn
+    except pymysql.Error as e:
+        logging.error(f"Database connection error: {e}")
+        return None # Or raise an exception
+
+def store_conversation(question, answer, channelid, phonenumber, uuid):
+    print("Storing Conversation")
+    conn = None
+    cur = None
+    try:
+        conn = connection()
+        if conn is None:
+            print("Failed to connect to the database for storing conversation.")
+            return
+
+        cur = conn.cursor()
+        question_escaped = conn.escape_string(question) # Basic escaping
+        answer_escaped = conn.escape_string(answer)     # Basic escaping
+        
+        # Ensure your_table_name is correct
+        query = f"""INSERT INTO your_table_name (question, answer, channelid, phonenumber, uuid) VALUES('{question_escaped}' ,'{answer_escaped}' ,'{channelid}' ,'{phonenumber}' ,'{uuid}');"""
+        
+        cur.execute(query)
+        conn.commit()
+        print("Conversation Stored")
+            
+    except Exception as e:
+        print(f"Error Database Operation: {e}")
+        logging.error(f"Error storing conversation: {e}")
+    
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+def validate_schedule_time(selected_time_str, selected_date_str=None):
+    """
+    Validates if the selected time is valid for scheduling a meeting.
+    (Using the provided function structure)
+    """
+    print(f"\n===== VALIDATING SCHEDULE =====")
+    print(f"VALIDATING: Time='{selected_time_str}', Date='{selected_date_str}'")
+    
+    try:
+        # Parse user input like "12:10 PM"
+        selected_time = datetime.strptime(selected_time_str, "%I:%M %p").time()
+        print(f"PARSED TIME: {selected_time.strftime('%I:%M %p')}")
+        
+        # Current IST time
+        current_time_dt = datetime.now(ZoneInfo("Asia/Kolkata"))
+        print(f"CURRENT IST TIME: {current_time_dt.strftime('%d-%m-%Y %I:%M %p')}")
+        logging.info(f"Current IST time: {current_time_dt.strftime('%d-%m-%Y %I:%M %p')}")
+        
+        # Use provided date if any, otherwise use current date
+        if selected_date_str:
+            try:
+                # Try with format DD-MM-YYYY
+                selected_date = datetime.strptime(selected_date_str, "%d-%m-%Y").date()
+                print(f"PARSED DATE (DD-MM-YYYY): {selected_date.strftime('%d-%m-%Y')}")
+            except ValueError:
+                try:
+                    # Try with format DD/MM/YYYY
+                    selected_date = datetime.strptime(selected_date_str.replace('/', '-'), "%d-%m-%Y").date()
+                    print(f"PARSED DATE (DD/MM/YYYY): {selected_date.strftime('%d-%m-%Y')}")
+                except ValueError:
+                    logging.error(f"Could not parse date: {selected_date_str}, using today's date")
+                    print(f"ERROR PARSING DATE '{selected_date_str}', DEFAULTING TO TODAY")
+                    selected_date = current_time_dt.date()
+        else:
+            selected_date = current_time_dt.date()
+            print(f"NO DATE SPECIFIED, USING TODAY: {selected_date.strftime('%d-%m-%Y')}")
+        
+        selected_datetime = datetime.combine(selected_date, selected_time).replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+        print(f"COMBINED DATE & TIME: {selected_datetime.strftime('%d-%m-%Y %I:%M %p')}")
+        logging.info(f"Selected time: {selected_datetime.strftime('%d-%m-%Y %I:%M %p')}")
+        
+        if selected_date == current_time_dt.date() and selected_datetime < current_time_dt:
+            print(f"REJECTION: Time has already passed today")
+            logging.info("Meeting rejected: Time has already passed today")
+            return False, f"That time has already passed today. Please choose a future time."
+
+        day_of_week = selected_datetime.weekday() # Monday 0 - Sunday 6
+        print(f"DAY OF WEEK: {day_of_week} (0=Monday, 6=Sunday)")
+        
+        if day_of_week == 6:  # Sunday
+            print(f"REJECTION: Date falls on Sunday")
+            logging.info("Meeting rejected: Date falls on Sunday")
+            return False, "I can't schedule meetings on Sundays. Would Monday work for you instead?"
+
+        if selected_date == current_time_dt.date():
+            min_allowed_time = current_time_dt + timedelta(minutes=30)
+            print(f"MINIMUM ALLOWED TIME (current + 30min): {min_allowed_time.strftime('%d-%m-%Y %I:%M %p')}")
+            
+            if selected_datetime < min_allowed_time:
+                time_diff = (selected_datetime - current_time_dt).total_seconds() / 60 
+                # Corrected time_diff logic, should be min_allowed_time - selected_datetime or similar check
+                print(f"REJECTION: Too soon. Selected time is before minimum allowed.")
+                logging.info(f"Meeting rejected: Too soon. Selected {selected_datetime}, minimum {min_allowed_time}")
+                earliest_time = min_allowed_time.strftime("%I:%M %p")
+                return False, f"Sorry, I need at least 30 minutes to prepare. The earliest I can schedule is {earliest_time} today. Would that work for you?"
+
+        business_start_time = datetime.strptime("09:00 AM", "%I:%M %p").time()
+        business_end_time = datetime.strptime("08:00 PM", "%I:%M %p").time()
+
+        business_start_dt = datetime.combine(selected_date, business_start_time).replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+        business_end_dt = datetime.combine(selected_date, business_end_time).replace(tzinfo=ZoneInfo("Asia/Kolkata"))
+        
+        print(f"BUSINESS HOURS: {business_start_dt.strftime('%I:%M %p')} to {business_end_dt.strftime('%I:%M %p')}")
+
+        if not (business_start_dt <= selected_datetime <= business_end_dt):
+            print(f"REJECTION: Outside business hours")
+            logging.info("Meeting rejected: Outside business hours")
+            return False, "Our meeting hours are between 9:00 AM and 8:00 PM IST, Monday to Saturday. Please choose another time."
+
+        formatted_time = selected_datetime.strftime("%d-%m-%Y %I:%M %p")
+        print(f"VALIDATION SUCCESS: Meeting scheduled for {formatted_time}")
+        print("===== VALIDATION COMPLETE =====\n")
+        logging.info(f"Meeting scheduled successfully for {formatted_time}")
+        return True, f"Meeting confirmed for {formatted_time} IST."
+
+    except Exception as e:
+        print(f"VALIDATION ERROR: {str(e)}")
+        logging.error(f"Time validation error: {str(e)}")
+        return False, "I couldn't understand that time format. Please specify a time like '10:30 AM.'"
+# --- End of Utility functions ---
+
+
+class Motilal_ChatBot_View(APIView):
+    # ... (post method and other parts of the class remain the same) ...
+    # We will only modify parse_scheduling_info, extract_time, standardize_time_format, and extract_date
+
+    def post(self, request):
+        question = str(request.data.get('question', '')).strip()
+        channel_id = str(request.data.get('channel_id', '')).strip()
+        phonenumber = str(request.data.get('phonenumber', '')).strip()
+        uuid_val = str(request.data.get('uuid', '')).strip() # Renamed to avoid conflict with uuid module
+        call_disconnect = request.data.get('call_disconnect')
+
+        print(f"\n\n===== NEW REQUEST =====")
+        print(f"QUESTION: {question}")
+        logging.info(f"Received question: {question}")
+        logging.info(f"Channel ID : {channel_id}")
+        logging.info(f"uuid : {uuid_val}")
+
+        # ... (rest of the post method, assuming it's largely the same) ...
+        # Key part where the modified methods will be called:
+        
+        # Get conversation history
+        conversation_hist = get_conversation_history(uuid_val) # Use conversation_hist to avoid conflict
+
+        if not conversation_hist: # Simplified greeting logic for brevity
+            greeting = "Good morning" # Placeholder
+            current_time_ist_for_greeting = datetime.now(ZoneInfo("Asia/Kolkata"))
+            greeting_hour = current_time_ist_for_greeting.hour
+            greeting = (
+                "Good morning" if 6 <= greeting_hour < 12 else
+                "Good afternoon" if 12 <= greeting_hour < 18 else
+                "Good evening"
+            )
+            first_message = f"{greeting}! I'm Jessica from Motilal Oswal. Would you like to know about our new investment fund?"
+            update_conversation(uuid_val, {"role": "user", "content": question})
+            update_conversation(uuid_val, {"role": "assistant", "content": first_message})
+            store_conversation(question, first_message, channel_id, phonenumber, uuid_val)
+            return JsonResponse({"question": question, "answer": first_message}, status=200)
+
+        update_conversation(uuid_val, {"role": "user", "content": question})
+        
+        current_ist = datetime.now(ZoneInfo("Asia/Kolkata"))
+        # Parse scheduling information from the question
+        time_str, date_str = self.parse_scheduling_info(question, current_ist)
+        
+        print(f"EXTRACTED FROM PARSE_SCHEDULING_INFO: Time='{time_str}', Date='{date_str}'")
+        logging.info(f"Extracted scheduling info - Time: {time_str}, Date: {date_str}")
+
+        if time_str: # If a time was successfully parsed, attempt validation
+            try:
+                print(f"VALIDATING SCHEDULE: Time='{time_str}', Date='{date_str}'")
+                is_valid, validation_msg = validate_schedule_time(time_str, date_str) # Ensure this function is defined or imported
+                print(f"VALIDATION RESULT: Valid={is_valid}, Message={validation_msg}")
+                logging.info(f"Schedule validation result: {is_valid}, message: {validation_msg}")
+                
+                if not is_valid:
+                    update_conversation(uuid_val, {"role": "assistant", "content": validation_msg})
+                    store_conversation(question, validation_msg, channel_id, phonenumber, uuid_val)
+                    return JsonResponse({"question": question, "answer": validation_msg}, status=200)
+                else:
+                    # If valid, the bot might confirm and end, or continue based on LLM logic.
+                    # For now, let's assume it might still go to LLM for a more conversational confirmation.
+                    # If direct confirmation is enough:
+                    update_conversation(uuid_val, {"role": "assistant", "content": validation_msg})
+                    store_conversation(question, validation_msg, channel_id, phonenumber, uuid_val)
+                    return JsonResponse({"question": question, "answer": validation_msg}, status=200)
+
+            except Exception as e:
+                print(f"ERROR VALIDATING TIME: {str(e)}")
+                logging.error(f"Error validating time: {str(e)}")
+                # Fall through to LLM if validation fails unexpectedly
+        
+        # Fallback to LLM if no time_str was parsed or if specific handling above doesn't return
+        # ... (LLM call logic as in original) ...
+        # This is a simplified version of the post method focusing on the call to parse_scheduling_info
+        
+        # --- LLM Call Placeholder ---
+        # Ensure `db` is initialized
+        if db is None:
+            logging.error("Chroma DB is not initialized. Cannot perform similarity search.")
+            response_text = "I'm having trouble accessing some information right now. Please try again later."
+            update_conversation(uuid_val, {"role": "assistant", "content": response_text})
+            store_conversation(question, response_text, channel_id, phonenumber, uuid_val)
+            return Response({"question": question, "answer": response_text}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        result = db.similarity_search_with_relevance_scores(question, k=1) if db else []
+        context = "".join(doc.page_content for doc, _ in result if doc) if result else "No relevant context found."
+
+
+        # Get current date, time and day in IST for the prompt
+        current_date_prompt = current_ist.strftime("%d-%m-%Y") # DD-MM-YYYY
+        time_current_prompt = current_ist.strftime("%I:%M %p") # HH:MM AM/PM
+        current_day_prompt = current_ist.strftime('%A') # Full weekday name
+
+        # Calculate time 30 minutes from now for immediate meeting requests for the prompt
+        time_plus_30_ist = current_ist + timedelta(minutes=30)
+        time_plus_30_prompt = time_plus_30_ist.strftime("%I:%M %p")
+
+
+        system_prompt = f'''
+        You are Jessica, an outbound calling agent from Motilal Oswal... (rest of your system prompt)
+        ---
+        ### CURRENT INFO (in IST)
+        Date: {current_date_prompt}
+        Time: {time_current_prompt}
+        Day: {current_day_prompt}
+        Earliest allowed meeting time: {time_plus_30_prompt}
+        ---
+        ### RELEVANT CONTEXT
+        {context}
+        '''
+        messages = [{"role": "system", "content": system_prompt}] + get_conversation_history(uuid_val)
+
+        formatted_prompt = LLM_INSTANCE.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        sampling_params = SamplingParams(max_tokens=100, temperature=0.5) # Simplified
+        
+        response_text = ""
+        try:
+            # Simulating stream for the mock
+            if isinstance(LLM_INSTANCE, MockLLM): # Check if it's the mock
+                 for token_part in LLM_INSTANCE.generate_stream(formatted_prompt, sampling_params):
+                    if isinstance(token_part, bool) and token_part is True: # Finished flag
+                        break
+                    response_text += token_part
+            else: # Actual vLLM call
+                for output in LLM_INSTANCE.llm.generate(formatted_prompt, sampling_params, request_id=str(uuid.uuid4())): # Assuming vLLM structure
+                    response_text += output.outputs[0].text # Adjust based on actual vLLM output structure
+            
+            logging.info(f"LLM Raw Response: {response_text}")
+            # Basic clean-up if needed, e.g., removing model's self-correction artifacts if any
+            # response_text = response_text.strip() # Add more sophisticated cleaning if necessary
+
+        except Exception as e:
+            logging.error(f"LLM generation error: {str(e)}")
+            response_text = "Sorry, I'm having trouble at the moment. Please try again shortly."
+
+        update_conversation(uuid_val, {"role": "assistant", "content": response_text})
+        # cache.set(cache_key, response_text, timeout=2592000) # Assuming cache_key is defined
+        store_conversation(question, response_text, channel_id, phonenumber, uuid_val)
+        
+        print(f"FINAL RESPONSE (LLM): {response_text}")
+        print("===== REQUEST COMPLETE =====\n\n")
+        return Response({"question": question, "answer": response_text}, status=status.HTTP_200_OK)
+        # --- End LLM Call Placeholder ---
+
+
+    def parse_scheduling_info(self, question, current_ist):
+        """Parse scheduling information from the user's question."""
+        
+        question_lower = question.lower()
+        print(f"PARSING SCHEDULING INFO FROM: '{question_lower}' (Current IST: {current_ist.strftime('%Y-%m-%d %A %I:%M %p')})")
+        
+        # Enhanced check for scheduling intent. Look for time patterns even without explicit keywords if "at" is present.
+        scheduling_keywords = ['schedule', 'meeting', 'book', 'appointment', 'meet', 'talk', 'discuss', 'call on'] # "call on date/time"
+        has_scheduling_keyword = any(keyword in question_lower for keyword in scheduling_keywords)
+        
+        # Attempt to extract time first. If a time is found, it strongly suggests scheduling intent.
+        time_str = self.extract_time(question_lower)
+        
+        # If no time_str is found, and no strong scheduling keywords, likely not a scheduling request.
+        if not time_str and not has_scheduling_keyword:
+            # Allow "at X PM/AM" without other keywords if a time is parsed by extract_time
+            # This condition is now implicitly handled by checking `if time_str:` later
+            print("NO STRONG SCHEDULING INTENT OR TIME PATTERN DETECTED, SKIPPING DETAILED DATE PARSING FOR SCHEDULING.")
+            return None, None # Return None, None if no time is found, implying no schedule intent for this parser
+
+        # If a time_str was found, then proceed to extract date
+        # extract_date will default to today if no other date is specified in the question
+        date_str = self.extract_date(question_lower, current_ist)
+        
+        print(f"PARSED SCHEDULING RESULT: Time='{time_str}', Date='{date_str}'")
+        return time_str, date_str
+
+    def extract_time(self, question_lower):
+        """Extract time information from the question. (Using existing robust patterns)"""
+        print(f"EXTRACTING TIME FROM: '{question_lower}'")
+        
+        # Common time patterns - slightly adjusted for clarity and order
+        time_patterns = [
+            r"(\d{1,2}[:\.]\d{2}\s*(?:[aA]\.?[mM]\.?|[pP]\.?[mM]\.?))",  # 10:30 AM, 10.30 am, 10:30a.m.
+            r"(\d{1,2}\s*(?:[aA]\.?[mM]\.?|[pP]\.?[mM]\.?))",              # 4 PM, 4pm, 4a.m. (catches "4 pm" before "10 30 am" might misinterpret space)
+            r"(\d{1,2}\s+\d{2}\s*(?:[aA]\.?[mM]\.?|[pP]\.?[mM]\.?))",  # 10 30 AM
+        ]
+        
+        for i, pattern in enumerate(time_patterns):
+            match = re.search(pattern, question_lower)
+            if match:
+                time_str_extracted = match.group(1)
+                # If pattern is like "4 PM", ensure it becomes "4:00 PM"
+                if re.fullmatch(r"\d{1,2}\s*(?:[aA]\.?[mM]\.?|[pP]\.?[mM]\.?)", time_str_extracted):
+                    hour_part = re.search(r"(\d{1,2})", time_str_extracted).group(1)
+                    ampm_part = re.search(r"([aApP]\.?[mM]\.?)", time_str_extracted).group(1)
+                    # Normalize AM/PM
+                    ampm_part_normalized = "AM" if 'a' in ampm_part.lower() else "PM"
+                    standardized = f"{hour_part}:00 {ampm_part_normalized}"
+                    print(f"TIME PATTERN {i+1} (Implicit minutes) MATCHED: '{time_str_extracted}' -> STANDARDIZED TO: '{standardized}'")
+                    return standardized
+
+                standardized = self.standardize_time_format(time_str_extracted)
+                print(f"TIME PATTERN {i+1} MATCHED: '{time_str_extracted}' -> STANDARDIZED TO: '{standardized}'")
+                return standardized
+        
+        # Check for "at X" or "by X" if X is clearly a time (e.g., "at 4 o'clock pm", "at half past 3") - more complex, current patterns are good for common cases
+        # The provided patterns are quite comprehensive for typical "HH:MM AM/PM" and "H AM/PM" formats.
+
+        print("NO TIME PATTERN MATCHED IN EXTRACT_TIME")
+        return None
+
+    def standardize_time_format(self, time_str):
+        """Standardize the time format to HH:MM AM/PM."""
+        if not time_str:
+            return None
+            
+        print(f"STANDARDIZING TIME INPUT: '{time_str}'")
+        
+        original_time_str = time_str # for logging
+
+        # Normalize am/pm, a.m./p.m. to AM/PM
+        is_pm = 'p' in time_str.lower()
+        time_str = re.sub(r'[aApP]\.?[mM]\.?', '', time_str).strip() # Remove am/pm variants
+
+        # Add space if missing, e.g., "10:30PM" -> "10:30 PM" is handled by removing and re-adding AM/PM
+        
+        # Replace dots with colons for time separator, e.g., 10.30 -> 10:30
+        time_str = time_str.replace('.', ':')
+        
+        # Handle cases like "10 30" -> "10:30" (if space is separator and no colon)
+        if ':' not in time_str and ' ' in time_str:
+            time_str = time_str.replace(' ', ':', 1)
+
+        # Ensure HH:MM format, if only H is given (e.g. "4" from "4 PM"), add :00
+        if ':' not in time_str:
+            if time_str.isdigit(): # If it's just a number like "4"
+                time_str = f"{time_str}:00"
+            else: # Could be invalid if it's not just digits here e.g. "four"
+                logging.warning(f"Could not parse hour from time string part: {time_str} from original {original_time_str}")
+                return None # Cannot standardize if format is unexpected
+
+        # Re-attach AM/PM
+        ampm_suffix = "PM" if is_pm else "AM"
+        standardized_time = f"{time_str} {ampm_suffix}" # time_str should now be HH:MM or H:MM
+
+        # Validate and reformat using datetime to ensure correctness (e.g. 9:3 AM -> 09:03 AM)
+        try:
+            # Attempt to parse what we've constructed
+            dt_obj = datetime.strptime(standardized_time, "%I:%M %p")
+            final_standardized_time = dt_obj.strftime("%I:%M %p")
+            print(f"STANDARDIZED TIME Post-strptime: '{original_time_str}' -> '{final_standardized_time}'")
+            return final_standardized_time
+        except ValueError as e:
+            logging.error(f"Error standardizing time '{original_time_str}' (intermediate: '{standardized_time}'): {e}")
+            print(f"STANDARDIZATION ERROR for '{original_time_str}' (intermediate: '{standardized_time}'): {e}")
+            # Fallback for simple HH:MM AM/PM if strptime fails due to minor issues not caught
+            # but format looks roughly okay. This part is tricky.
+            # For safety, if strptime fails, maybe return None or the partially standardized one with a warning.
+            # Given the regexes in extract_time, `standardized_time` should be quite close.
+            # Let's return what we have if it looks like a valid pattern, otherwise None.
+            if re.match(r"^\d{1,2}:\d{2} (?:AM|PM)$", standardized_time):
+                 print(f"STANDARDIZED TIME (fallback after strptime error): '{standardized_time}'")
+                 return standardized_time
+            return None
+
+
+    def extract_date(self, question_lower, current_ist: datetime):
+        """Extract date information from the question.
+        Defaults to current_ist's date if no other date is specified and a time was found.
+        """
+        print(f"EXTRACTING DATE FROM: '{question_lower}' (Current IST: {current_ist.strftime('%Y-%m-%d %A')})")
+        
+        month_mapping = {
+            'jan': '01', 'january': '01', 'feb': '02', 'february': '02',
+            'mar': '03', 'march': '03', 'apr': '04', 'april': '04',
+            'may': '05', # 'may': '05' already there
+            'jun': '06', 'june': '06', 'jul': '07', 'july': '07',
+            'aug': '08', 'august': '08', 'sep': '09', 'september': '09',
+            'oct': '10', 'october': '10', 'nov': '11', 'november': '11',
+            'dec': '12', 'december': '12'
+        }
+        
+        # 1. Check for date in format DD-MM-YYYY or DD/MM/YYYY
+        # Adjusted regex to be more specific for day/month ranges if needed, but usually handled by strptime later
+        date_match_specific = re.search(r"(\d{1,2})[-/](\d{1,2})[-/](\d{4})", question_lower)
+        if date_match_specific:
+            day, month, year = date_match_specific.groups()
+            try:
+                # Validate by parsing
+                dt_obj = datetime(int(year), int(month), int(day))
+                date_str = dt_obj.strftime("%d-%m-%Y")
+                print(f"DD-MM-YYYY FORMAT MATCHED AND VALIDATED: '{date_match_specific.group(0)}' -> '{date_str}'")
+                return date_str
+            except ValueError as e:
+                print(f"Invalid date components in DD-MM-YYYY match: {day}-{month}-{year}. Error: {e}")
+                # Fall through if invalid
+
+        # 2. Check for date in format "1 June", "1st June 2025", "June 1st"
+        # Pattern for "1 June", "1 June 2025", "1st June"
+        # (?:st|nd|rd|th)? handles optional ordinal indicators
+        for month_name_text, month_num_str in month_mapping.items():
+            # Pattern: day month [year] OR month day [year]
+            # Example: 1 June 2025 or June 1 2025
+            patterns_for_month = [
+                fr"(\d{{1,2}})(?:st|nd|rd|th)?\s+{month_name_text}\s*(\d{{4}})?", # Day Month [Year]
+                fr"{month_name_text}\s*(\d{{1,2}})(?:st|nd|rd|th)?\s*(\d{{4}})?"  # Month Day [Year]
+            ]
+            for pattern_idx, date_pattern_month in enumerate(patterns_for_month):
+                month_match = re.search(date_pattern_month, question_lower)
+                if month_match:
+                    groups = month_match.groups()
+                    day_str = groups[0]
+                    year_str = groups[1] if len(groups) > 1 and groups[1] else str(current_ist.year)
+                    try:
+                        dt_obj = datetime(int(year_str), int(month_num_str), int(day_str))
+                        date_str = dt_obj.strftime("%d-%m-%Y")
+                        print(f"MONTH NAME FORMAT MATCHED ('{month_name_text}'): '{month_match.group(0)}' -> '{date_str}'")
+                        return date_str
+                    except ValueError as e:
+                        print(f"Invalid date components in month name match: {day_str}-{month_num_str}-{year_str}. Error: {e}")
+                        # Fall through or continue to next pattern
+
+        # 3. Check for "tomorrow", "today"
+        if "tomorrow" in question_lower:
+            target_date_dt = current_ist + timedelta(days=1)
+            date_str = target_date_dt.strftime("%d-%m-%Y")
+            print(f"'TOMORROW' KEYWORD MATCHED: -> '{date_str}'")
+            return date_str
+            
+        if "today" in question_lower:
+            date_str = current_ist.strftime("%d-%m-%Y")
+            print(f"'TODAY' KEYWORD MATCHED: -> '{date_str}'")
+            return date_str
+            
+        # 4. Handle day of week mentions (e.g., "on Wednesday", "next Thursday")
+        day_keywords = {
+            'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,  
+            'friday': 4, 'saturday': 5, 'sunday': 6
+        }
+        
+        # Iterate to find a day match. Process "next [day]" with higher precedence if found.
+        # This simple loop structure will take the first day name it finds in `day_keywords`.
+        # For "next thursday" vs "thursday", more sophisticated matching order or regex might be needed
+        # if both could be present and interpreted differently.
+        # For now, this addresses the core issue with "Thursday" on a Thursday.
+
+        # First check for "next [weekday]"
+        for day_name, target_day_index in day_keywords.items():
+            if re.search(r'\bnext\s+' + re.escape(day_name) + r'\b', question_lower):
+                current_day_index = current_ist.weekday()
+                days_to_soonest_occurrence = (target_day_index - current_day_index + 7) % 7
+                days_until = days_to_soonest_occurrence + 7 # "next" means 7 days after the soonest one
+                
+                target_date_dt = current_ist + timedelta(days=days_until)
+                date_str = target_date_dt.strftime("%d-%m-%Y")
+                print(f"DAY OF WEEK ('next {day_name}') MATCHED: Current={current_ist.strftime('%A')}, Target day_idx={target_day_index}, Calculated days_until={days_until} -> '{date_str}'")
+                return date_str
+
+        # Then check for plain "[weekday]"
+        for day_name, target_day_index in day_keywords.items():
+            # Use word boundaries to match whole word, and ensure "next" is not preceding it
+            # (already handled by the block above, but this makes the plain match more specific)
+            if re.search(r'\b' + re.escape(day_name) + r'\b', question_lower) and \
+               not re.search(r'\bnext\s+' + re.escape(day_name) + r'\b', question_lower):
+                current_day_index = current_ist.weekday()
+                
+                # Calculate days until the *next* occurrence of this target_day_index,
+                # where "next" includes today if target_day_index is today.
+                # Example: Today is Tuesday (1), target is Thursday (3) => days_until = (3-1+7)%7 = 2. (This Thursday)
+                # Example: Today is Thursday (3), target is Thursday (3) => days_until = (3-3+7)%7 = 0. (Today)
+                # Example: Today is Thursday (3), target is Tuesday (1) => days_until = (1-3+7)%7 = 5. (Next Tuesday)
+                days_until = (target_day_index - current_day_index + 7) % 7
+                                    
+                target_date_dt = current_ist + timedelta(days=days_until)
+                date_str = target_date_dt.strftime("%d-%m-%Y")
+                print(f"DAY OF WEEK ('{day_name}') MATCHED: Current={current_ist.strftime('%A')}, Target day_idx={target_day_index}, Calculated days_until={days_until} -> '{date_str}'")
+                return date_str
+        
+        # 5. Default to today's date if a time was parsed but no specific date found above
+        # This is implicitly handled if this function is called when a time_str was found by parse_scheduling_info
+        default_date_str = current_ist.strftime("%d-%m-%Y")
+        print(f"NO SPECIFIC DATE PATTERN MATCHED IN QUESTION, DEFAULTING TO CURRENT DATE: '{default_date_str}'")
+        return default_date_str
+
+
+# Example Usage (for testing the date/time extraction logic if run standalone)
+if __name__ == '__main__':
+    view = Motilal_ChatBot_View()
+    
+    # Test cases
+    test_queries = [
+        ("schedule a meeting for thursday 2 pm", datetime(2025, 5, 27, 10, 0, 0, tzinfo=ZoneInfo("Asia/Kolkata"))), # Current: Tuesday
+        ("what about thursday 3pm", datetime(2025, 5, 29, 10, 0, 0, tzinfo=ZoneInfo("Asia/Kolkata"))),             # Current: Thursday
+        ("can we do next thursday at 4pm", datetime(2025, 5, 27, 10, 0, 0, tzinfo=ZoneInfo("Asia/Kolkata"))),    # Current: Tuesday
+        ("book for today at 5 pm", datetime(2025, 5, 27, 10, 0, 0, tzinfo=ZoneInfo("Asia/Kolkata"))),
+        ("tomorrow at 10:30 AM", datetime(2025, 5, 27, 10, 0, 0, tzinfo=ZoneInfo("Asia/Kolkata"))),
+        ("how about 03-06-2025 at 11 AM", datetime(2025, 5, 27, 10, 0, 0, tzinfo=ZoneInfo("Asia/Kolkata"))), # June 3rd
+        ("let's meet on 5th june at 2:30pm", datetime(2025, 5, 27, 10, 0, 0, tzinfo=ZoneInfo("Asia/Kolkata"))),
+        ("Can we schedule for June 6 2025 at 4pm", datetime(2025, 5, 27, 10, 0, 0, tzinfo=ZoneInfo("Asia/Kolkata"))),
+        ("Is 7pm on Wednesday okay?", datetime(2025, 5, 27, 10, 0, 0, tzinfo=ZoneInfo("Asia/Kolkata"))), # Current: Tuesday
+        ("How about 4 pm", datetime(2025, 5, 27, 10, 0, 0, tzinfo=ZoneInfo("Asia/Kolkata"))), # Just time, date should default to current
+        ("Let's talk at 4.30 p.m. on monday", datetime(2025, 5, 30, 10,0,0, tzinfo=ZoneInfo("Asia/Kolkata"))) # Current: Friday
+    ]
+
+    print("\n--- Running Test Cases for Date/Time Extraction ---")
+    for q_idx, (query, current_time_mock) in enumerate(test_queries):
+        print(f"\n--- Test Query {q_idx + 1} ---")
+        print(f"Query: \"{query}\"")
+        print(f"Mock Current Time: {current_time_mock.strftime('%Y-%m-%d %A %I:%M %p %Z')}")
+        time_val, date_val = view.parse_scheduling_info(query, current_time_mock)
+        print(f"==> Extracted by parse_scheduling_info: Time='{time_val}', Date='{date_val}'")
+        if time_val and date_val:
+            is_valid, msg = validate_schedule_time(time_val, date_val) # Use the actual validate_schedule_time
+            print(f"==> Validation Result: Valid={is_valid}, Message='{msg}'")
+        elif time_val: # Only time was extracted, date defaulted.
+            is_valid, msg = validate_schedule_time(time_val, None) # Date will default to today in validation
+            print(f"==> Validation Result (default date): Valid={is_valid}, Message='{msg}'")
