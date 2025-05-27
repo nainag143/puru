@@ -47,7 +47,7 @@ logger.info(f"Application starting. Using device: {DEVICE}")
 API_KEY_OPENAI = os.environ.get("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY_HERE") # Replace with your actual key or ensure env var is set
 if API_KEY_OPENAI == "YOUR_OPENAI_API_KEY_HERE":
     logger.warning("OpenAI API Key is using a placeholder value.")
-client_openai = OpenAI(api_key=API_KEY_OPENAI)
+openai_client = OpenAI(api_key=API_KEY_OPENAI)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false" # As in original code
 
@@ -390,17 +390,157 @@ class Motilal_ChatBot_View(APIView):
         # --- Call Disconnect Logic ---
         if call_disconnect:
             logger.info(f"Call disconnected for UUID: {uuid_val}. Processing disposition.")
-            # (Your existing call_disconnect logic using client_openai and DB updates for disposition)
-            # ... This part is assumed to be mostly self-contained and using `client_openai` ...
-            # For brevity, keeping it as a high-level step here.
-            # Ensure YOUR_CONVERSATION_TABLE_NAME is correct in this logic too.
-            # Example placeholder:
-            # summary_info = summarize_conversation_from_db(uuid_val) # You'd need this function
-            # disposition = classify_disposition_with_openai(summary_info['text'], client_openai)
-            # meeting_details = extract_meeting_details_with_openai(summary_info['text'], client_openai)
-            # update_db_with_disposition(summary_info['id'], disposition, meeting_details)
-            delete_conversation_cache(uuid_val)
-            processing_time = (datetime.now() - start_time).total_seconds()
+            
+            conn = None # Initialize conn to None for finally block
+            try:
+                conn = get_db_connection()
+                if not conn:
+                    raise Exception("Failed to connect to database for disposition.")
+
+                # Retrieve conversation from DB (if you store full conversations there)
+                # Your SQL query seems to group by UUID, which is good.
+                # It's better to store conversation history turn by turn and then retrieve for disposition analysis.
+                # If you rely solely on this, ensure 'your_table_name' is storing every turn correctly.
+                conversation_df = pd.read_sql(
+                    f"""
+                    SELECT
+                        id,
+                        disposition,
+                        uuid,
+                        GROUP_CONCAT(CONCAT('Customer: ', question, ' || Bot: ', answer) SEPARATOR ' , ') AS all_conversation,
+                        schedule_date
+                    FROM your_table_name
+                    WHERE
+                        uuid = '{uuid_val}'
+                    GROUP BY uuid;
+                    """,
+                    conn
+                )
+
+                if not conversation_df.empty:
+                    conversation = conversation_df.iloc[0].to_dict()
+                    conversation_data = conversation['all_conversation']
+                    conversation_id = conversation['id']
+
+                    # --- Get Disposition from OpenAI ---
+                    disposition_prompt = f"""
+                    You are an expert at analyzing customer conversations. Given a dialogue between a customer and a bot, your task is to select the most appropriate disposition from the list below that best reflects the customer's intent at the end of the conversation.
+
+                    List of Dispositions:
+                    1. Meeting Scheduled
+                    2. Interested
+                    3. Not Interested
+                    4. Call Back
+                    5. Do Not Call Me
+                    6. Remove My Number
+                    7. DND
+                    8. DNC
+                    9. Stop Calling
+                    10. I Will Complain
+
+                    Instructions:
+                    - Analyze the entire conversation carefully.
+                    - Focus on the customer’s final intent or sentiment.
+                    - Select and return only the disposition name from the list (e.g., "Interested", "Meeting Scheduled").
+                    - Do NOT include numbering, quotes, markdown symbols like **, or any explanation — just the disposition name.
+
+                    Conversation:
+                    {conversation_data}
+
+                    Your Response:
+                    """
+                    response_disposition = openai_client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "You are a helpful assistant for classifying customer call dispositions."},
+                            {"role": "user", "content": disposition_prompt}
+                        ],
+                        max_tokens=50, # Shorter max_tokens for disposition
+                        temperature=0.7,
+                        top_p=0.5
+                    )
+                    disposition = response_disposition.choices[0].message.content.strip()
+                    logging.info(f"UUID {uuid_val} - Predicted Disposition: {disposition}")
+
+                    schedule_date = None
+                    # --- Check for Meeting Scheduled and extract time ---
+                    if "Meeting Scheduled".lower() in disposition.lower():
+                        current_datetime_str = datetime.now().strftime("%d/%m/%Y %I:%M %p")
+                        meeting_time_prompt = f"""
+                        You are an intelligent assistant skilled at analyzing customer conversations to schedule meetings. Your task is to extract the final confirmed meeting **date and time** between a customer and a bot.
+
+                        Guidelines:
+                        - Read the full conversation carefully.
+                        - Identify the **final meeting date and time** that both the customer and bot agree on.
+                        - If the customer says vague terms like "tomorrow", "day after", "next Monday", or just a time like "4 PM", use the following current date and time as the reference:
+                        Current Date and Time: {current_datetime_str}
+                        - Resolve such vague expressions into a full date and time accordingly.
+                        - Return only one final confirmed meeting date and time in this exact format:
+                        "DD/MM/YYYY hh:mm AM/PM"
+                        - If no final date and time is confirmed, return:
+                        null
+
+                        Here is the conversation:
+                        {conversation_data}
+
+                        Return ONLY one of the following:
+                        1. A single line with date and time: "DD/MM/YYYY hh:mm AM/PM"
+                        2. null
+                        Do NOT include any extra words or explanation.
+                        """
+                        response_meeting_time = openai_client.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=[
+                                {"role": "system", "content": "You are a helpful assistant for extracting meeting times."},
+                                {"role": "user", "content": meeting_time_prompt}
+                            ],
+                            max_tokens=50, # Shorter max_tokens for time extraction
+                            temperature=0.7,
+                            top_p=0.5
+                        )
+                        meeting_time_raw = response_meeting_time.choices[0].message.content.strip()
+                        if meeting_time_raw.lower() != "null":
+                            try:
+                                # Attempt to parse the date and time, handle errors
+                                schedule_date = datetime.strptime(meeting_time_raw, "%d/%m/%Y %I:%M %p").strftime("%Y-%m-%d %H:%M:%S")
+                                logging.info(f"UUID {uuid_val} - Extracted Meeting Time: {meeting_time_raw}")
+                            except ValueError:
+                                logging.warning(f"UUID {uuid_val} - Failed to parse meeting time: {meeting_time_raw}")
+                                schedule_date = None
+                        else:
+                            logging.info(f"UUID {uuid_val} - No specific meeting time extracted.")
+
+                    # --- Update Database with Disposition and Schedule Date ---
+                    with conn.cursor() as cur:
+                        if schedule_date:
+                            update_query = """
+                                UPDATE your_table_name
+                                SET disposition = %s, schedule_date = %s
+                                WHERE id = %s;
+                            """
+                            cur.execute(update_query, (disposition, schedule_date, conversation_id))
+                        else:
+                            update_query = """
+                                UPDATE your_table_name
+                                SET disposition = %s
+                                WHERE id = %s;
+                            """
+                            cur.execute(update_query, (disposition, conversation_id))
+                        conn.commit()
+                        logging.info(f"UUID {uuid_val} - Database updated with disposition: {disposition} and schedule_date: {schedule_date}.")
+
+                else:
+                    logging.warning(f"UUID {uuid_val} - No conversation data found in DB to process for disposition.")
+
+            except Exception as e:
+                logging.error(f"Error during call disconnect processing for UUID {uuid_val}: {e}")
+                # You might want to log the error to a separate system or dead-letter queue for investigation
+            finally:
+                if conn:
+                    conn.close()
+                # Always delete conversation history from cache on disconnect, regardless of DB success
+                delete_conversation_cache(uuid_val)
+
             logger.info(f"Call disconnect processed for UUID: {uuid_val}. Time taken: {processing_time:.2f}s")
             return Response({"question": "", "answer": "Call Disconnected, disposition processed."}, status=status.HTTP_200_OK)
 
@@ -430,6 +570,7 @@ class Motilal_ChatBot_View(APIView):
             logger.info(f"Responded with schedule validation message for UUID {uuid_val}: '{validation_response_msg}'")
             processing_time = (datetime.now() - start_time).total_seconds()
             logger.info(f"--- REQUEST END (Validation Path) --- UUID: {uuid_val}. Time: {processing_time:.2f}s")
+
             return JsonResponse({"question": question, "answer": validation_response_msg}, status=status.HTTP_200_OK)
         
         # --- Fallback to LLM for general queries or if scheduling wasn't conclusive ---
@@ -483,8 +624,7 @@ You are Jessica, an outbound calling agent from Motilal Oswal. Your primary goal
     If the conversation history shows that you (assistant) have not spoken yet or only had a very brief prior interaction, and the user provides their first substantial query or a simple greeting:
     Respond with: "{current_greeting_for_prompt}! This is Jessica calling from Motilal Oswal. We're currently highlighting our Services Fund, which targets India’s fastest-growing service sectors for potential long-term growth. Is this something you might be interested in hearing a bit more about, or perhaps you've explored service sector investments before?"
     * Deliver this introduction or a close variant **only once** at the effective start of the meaningful conversation.
-2.  **Subsequent Greetings/Interactions:** If the user says "hello" again *after* the introduction has been made, or if the conversation is ongoing:
-    Respond naturally without repeating the full introduction. Examples: "Yes, I'm here.", "Hi again! How can I help you further regarding the fund?", or directly address their new query based on the ongoing context.
+2.  **Subsequent Greetings/Interactions:** If the user says "hello" again *after* the conversation has been initiated, or if the conversation is previously ongoing:
 
 ### Core Task: Pitch and Schedule
 - **Pitch Brevity:** Briefly mention the fund's focus (service sectors, long-term growth).
@@ -496,7 +636,7 @@ You are Jessica, an outbound calling agent from Motilal Oswal. Your primary goal
     - If the user expresses general interest in scheduling (e.g., "Can I schedule a call?", "What time works?"): "Great! To discuss this in more detail, I can set up a call for you. Our team is available Monday to Saturday, from 9 AM to 8 PM IST. What day and time would work best for you?"
     - If the user suggested a specific time/date in their *current* query, and the system (in the previous turn, if applicable) gave a validation message:
         - If the **previous assistant turn was a validation rejection** (e.g., "Sorry, that time is on a Sunday."): Acknowledge it and re-prompt. Example: "Right, as I mentioned, Sundays aren't available. How about another day, say, next Monday or Tuesday between 9 AM and 8 PM?"
-        - If the **previous assistant turn was a confirmation query** (e.g., "Okay, I've noted... Is that correct?"), and the user's *current* query is "yes", "correct", or similar: Respond with final confirmation. Example: "Excellent, that's confirmed then! We'll send out a calendar invite shortly. Thanks for your time, and have a great day!" (Then aim to end the call).
+        - If the **previous assistant turn was a confirmation query** (e.g., "Okay, I've noted... Is that correct?"), and the user's *current* query is "yes", "correct", or similar: Respond with final confirmation. Example: "Excellent, Meeting confirmed for DD-MM-YYYY HH:MM PM IST."
         - If the user's *current* query is "no" or a change request to a previous confirmation query: "Alright, no problem. What new time would you prefer instead? Just a reminder, it's Mon-Sat, 9 AM to 8 PM IST, and before June 3rd, 2025."
     - If user asks for "now" or "ASAP": "I understand you're keen to connect. While I can't set up an immediate call, we can schedule one with a specialist quite soon, possibly starting from around {prompt_earliest_time_today} today if that's suitable, or another time that works for you."
 
@@ -584,4 +724,11 @@ You are Jessica, an outbound calling agent from Motilal Oswal. Your primary goal
         logger.info(f"FINAL Bot Response for UUID {uuid_val}: '{llm_response_text}'")
         processing_time = (datetime.now() - start_time).total_seconds()
         logger.info(f"--- REQUEST END (LLM Path) --- UUID: {uuid_val}. Total time: {processing_time:.2f}s")
+        with open("/root/BotHub_llm_model/llm_agent_project/motilal_app/data_check.txt", "a") as file:
+                file.write(f"\n\n===== NEW REQUEST ({datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M:%S')}) =====\n")
+                file.write(f"UUID: {uuid_val}\n")
+                file.write(f"Received question: {question}\n")
+                file.write(f"Channel ID: {channel_id}\n")
+                file.write(f"Call Disconnect: {call_disconnect}\n")
+                file.write(f"Answer : {llm_response_text}")
         return Response({"question": question, "answer": llm_response_text}, status=status.HTTP_200_OK)
