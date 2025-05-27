@@ -1,0 +1,712 @@
+# First, ensure you have the latest OpenAI package installed:
+# pip pip install openai==1.8.2
+
+import os
+import time
+import torch
+import datetime
+import logging
+import hashlib
+import pymysql
+import json
+import pandas as pd
+from datetime import datetime, timedelta
+
+from django.shortcuts import render
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.core.cache import cache
+
+# Langchain and other imports
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
+import chromadb
+from uuid import uuid4
+from langchain_chroma import Chroma
+from langchain_community.document_loaders import PyPDFLoader
+from transformers import GPT2Tokenizer
+
+# --- Updated OpenAI Import for v1.8.2 ---
+from openai import OpenAI
+from openai import APIError, RateLimitError, AuthenticationError, OpenAIError # Import specific exceptions
+
+# --- Configure Logging ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# --- Configuration (Move these to Django settings or environment variables) ---
+# Ensure PyTorch is using GPU if available
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"\nUsing device: {DEVICE}\n")
+
+# File Paths (Ideally, manage these through Django's MEDIA_ROOT or similar)
+# Ensure these paths are correct and accessible in your environment
+TEXT_FILE_PATH = "/root/Junaid/3_chatBot/chatBot_8004/media/Docs_for_GPT_Model/output.txt"
+PDF_FILE_PATH = "/root/Junaid/3_chatBot/chatBot_8004/media/Docs_for_GPT_Model/Motilal Oswal Services Fund_and_Services_FAQ_2_doc_merged_2025_05_16_V3.pdf"
+
+# Set OpenAI API key (CRITICAL: Use environment variables in production)
+# Get API key from environment variable, fallback to hardcoded (for testing ONLY, not prod)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
+os.environ["TOKENIZERS_PARALLELISM"] = "false" # Suppress HuggingFace tokenizer warning
+
+# Database Configuration (CRITICAL: Use environment variables in production)
+DB_CONFIG = {
+    "host": "127.0.0.1",
+    "user": "root",
+    "passwd": "passw0rd",
+    "database": "voice_bot"
+}
+
+# Chatbot specific configurations
+MAX_TOKENS_CONTEXT = 800
+CONVERSATION_HISTORY_LIMIT = 5 # Keep last N exchanges (user + assistant)
+NFO_LAST_DATE = datetime(2025, 6, 3, 20, 0, 0) # June 3rd, 2025, 8:00 PM IST (20:00 is 8 PM)
+
+# --- Initialize OpenAI Client Globally ---
+try:
+    openai_client = OpenAI(api_key=OPENAI_API_KEY)
+    logging.info("OpenAI client initialized.")
+except AuthenticationError as e:
+    logging.critical(f"OpenAI Authentication Error: {e}. Please check your API key.")
+    openai_client = None
+except Exception as e:
+    logging.critical(f"Failed to initialize OpenAI client: {e}")
+    openai_client = None
+
+# --- Global Initialization for static resources (Run once on server start) ---
+try:
+    with open(TEXT_FILE_PATH, 'rb') as f:
+        content = f.read()
+        state_of_the_union = content.decode('utf-8', errors='ignore')
+    logging.info("Text document loaded.")
+except Exception as e:
+    logging.error(f"Error loading text document: {e}")
+    state_of_the_union = "" # Ensure it's not None
+
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+texts = text_splitter.create_documents([state_of_the_union])
+logging.info("Text splitter initialized.")
+
+hf = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-mpnet-base-v2",
+    model_kwargs={'device': DEVICE},
+    encode_kwargs={'normalize_embeddings': True}
+)
+logging.info("HuggingFace Embeddings initialized.")
+
+try:
+    loader = PyPDFLoader(PDF_FILE_PATH)
+    docs = loader.load()
+    embeddings = hf.embed_documents([doc.page_content for doc in docs])
+    logging.info("PDF loaded and embeddings created.")
+except Exception as e:
+    logging.error(f"Error loading PDF or creating embeddings: {e}")
+    docs = []
+    embeddings = []
+
+# ChromaDB Setup - ensure 'vdb' directory exists and is writable
+CHROMADB_PERSIST_DIR = 'vdb'
+try:
+    client = chromadb.PersistentClient(CHROMADB_PERSIST_DIR)
+    collection = client.get_or_create_collection('test-2')
+    if not collection.get()['ids'] and docs: # Only add if collection is empty and docs are available
+        logging.info("Populating ChromaDB collection...")
+        collection.add(
+            ids=[str(uuid4()) for _ in docs],
+            documents=[doc.page_content for doc in docs],
+            embeddings=embeddings
+        )
+    db = Chroma(collection_name='test-2', persist_directory=CHROMADB_PERSIST_DIR, embedding_function=hf)
+    logging.info("ChromaDB initialized and ready.")
+except Exception as e:
+    logging.critical(f"Error setting up ChromaDB: {e}")
+    db = None # Set to None to handle gracefully later
+
+tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+logging.info("GPT2 Tokenizer loaded.")
+
+# --- Utility Functions ---
+
+def truncate_context(context, max_tokens=MAX_TOKENS_CONTEXT):
+    tokens = tokenizer.encode(context)
+    return tokenizer.decode(tokens[:max_tokens]) if len(tokens) > max_tokens else context
+
+def get_db_connection():
+    """Establishes a new database connection."""
+    try:
+        conn = pymysql.connect(**DB_CONFIG)
+        return conn
+    except pymysql.Error as e:
+        logging.error(f"Database connection error: {e}")
+        return None
+
+# --- Conversation Management with Django Cache ---
+def update_conversation(uuid, entry):
+    """Adds a new message to a user's conversation history in cache."""
+    key = f"conversation:{uuid}"
+    conversation = cache.get(key, [])
+    conversation.append(entry)
+    if len(conversation) > CONVERSATION_HISTORY_LIMIT * 2:
+        conversation = conversation[-(CONVERSATION_HISTORY_LIMIT * 2):]
+    cache.set(key, conversation, timeout=2592000) # 30 days timeout
+
+def get_conversation_history(uuid):
+    """Retrieves a user's conversation history from cache."""
+    key = f"conversation:{uuid}"
+    return cache.get(key, [])
+
+def delete_conversation_history(uuid):
+    """Deletes a user's conversation history from cache."""
+    key = f"conversation:{uuid}"
+    cache.delete(key)
+    logging.info(f"Conversation history for UUID {uuid} deleted from cache.")
+
+# --- SCHEDULING TOOL FUNCTION (Python side) ---
+def schedule_meeting(date_str: str, time_str: str, current_datetime_iso: str) -> str:
+    """
+    Schedules a meeting with the customer.
+    This function strictly validates the proposed date and time against business rules.
+
+    Args:
+        date_str (str): The proposed date (e.g., "tomorrow", "next Monday", "28-05-2025").
+        time_str (str): The proposed time (e.g., "4 PM", "10:30 AM", "now").
+        current_datetime_iso (str): The current date and time in ISO format (e.g., "2025-05-27T21:14:04"),
+                                   used as a reference for relative dates/times.
+    Returns:
+        str: A message indicating the result of the scheduling attempt (success or specific error).
+    """
+    try:
+        current_dt = datetime.fromisoformat(current_datetime_iso)
+    except ValueError:
+        return "Error: Invalid current_datetime_iso format provided to scheduling tool."
+
+    proposed_dt = None
+    try:
+        # Try to parse exact date first (DD-MM-YYYY, DD/MM/YYYY)
+        for fmt in ["%d-%m-%Y %I:%M %p", "%d/%m/%Y %I:%M %p"]:
+            try:
+                proposed_dt = datetime.strptime(f"{date_str} {time_str}", fmt)
+                break
+            except ValueError:
+                pass
+        
+        if proposed_dt is None: # If not exact, try relative dates
+            # Handle relative dates like "tomorrow", "day after tomorrow", "next Monday"
+            if "tomorrow" in date_str.lower():
+                proposed_date_calc = current_dt.date() + timedelta(days=1)
+            elif "day after tomorrow" in date_str.lower():
+                proposed_date_calc = current_dt.date() + timedelta(days=2)
+            elif "next monday" in date_str.lower():
+                days_ahead = (0 - current_dt.weekday() + 7) % 7 # 0 is Monday
+                proposed_date_calc = current_dt.date() + timedelta(days=days_ahead + 7 if days_ahead == 0 else days_ahead)
+            elif "next tuesday" in date_str.lower():
+                days_ahead = (1 - current_dt.weekday() + 7) % 7 # 1 is Tuesday
+                proposed_date_calc = current_dt.date() + timedelta(days=days_ahead + 7 if days_ahead == 0 else days_ahead)
+            elif "next wednesday" in date_str.lower():
+                days_ahead = (2 - current_dt.weekday() + 7) % 7 # 2 is Wednesday
+                proposed_date_calc = current_dt.date() + timedelta(days=days_ahead + 7 if days_ahead == 0 else days_ahead)
+            elif "next thursday" in date_str.lower():
+                days_ahead = (3 - current_dt.weekday() + 7) % 7 # 3 is Thursday
+                proposed_date_calc = current_dt.date() + timedelta(days=days_ahead + 7 if days_ahead == 0 else days_ahead)
+            elif "next friday" in date_str.lower():
+                days_ahead = (4 - current_dt.weekday() + 7) % 7 # 4 is Friday
+                proposed_date_calc = current_dt.date() + timedelta(days=days_ahead + 7 if days_ahead == 0 else days_ahead)
+            elif "next saturday" in date_str.lower():
+                days_ahead = (5 - current_dt.weekday() + 7) % 7 # 5 is Saturday
+                proposed_date_calc = current_dt.date() + timedelta(days=days_ahead + 7 if days_ahead == 0 else days_ahead)
+            elif "today" in date_str.lower():
+                proposed_date_calc = current_dt.date()
+            else:
+                # Fallback to current date if no relative date is given and date string is ambiguous
+                proposed_date_calc = current_dt.date() 
+
+            # Parse time part
+            time_parts = time_str.replace(".", "").lower().split()
+            hour = None
+            minute = 0
+            is_pm = False
+
+            if "am" in time_parts:
+                is_pm = False
+            elif "pm" in time_parts:
+                is_pm = True
+
+            for part in time_parts:
+                try:
+                    if ":" in part:
+                        h, m = map(int, part.split(':'))
+                        hour = h
+                        minute = m
+                    else:
+                        h = int(part)
+                        if 1 <= h <= 12: # Assume it's an hour
+                            hour = h
+                except ValueError:
+                    continue
+            
+            if "now" in time_str.lower() or "right away" in time_str.lower():
+                 # Schedule 30 mins from current time
+                temp_dt = current_dt + timedelta(minutes=30)
+                proposed_dt = datetime(
+                    temp_dt.year, temp_dt.month, temp_dt.day,
+                    temp_dt.hour, temp_dt.minute, 0
+                )
+            elif hour is not None:
+                if is_pm and hour < 12: # Convert to 24-hour format
+                    hour += 12
+                elif not is_pm and hour == 12: # Midnight
+                    hour = 0
+                proposed_dt = datetime(
+                    proposed_date_calc.year, proposed_date_calc.month, proposed_date_calc.day,
+                    hour, minute, 0
+                )
+
+    except Exception as e:
+        logging.error(f"Error parsing date/time in schedule_meeting: {e}")
+        return "Could not parse the date and time. Please provide a clear date (e.g., '28-05-2025' or 'tomorrow') and time (e.g., '4 PM')."
+
+    if proposed_dt is None:
+        return "Please specify a valid date and time for the meeting."
+
+    # --- Validation Rules ---
+    # 1. NFO Last Date
+    if proposed_dt > NFO_LAST_DATE:
+        return f"We do not schedule meetings after the NFO ends, which is {NFO_LAST_DATE.strftime('%dth %B %Y')}."
+
+    # 2. Sunday Restriction
+    if proposed_dt.weekday() == 6: # Monday is 0, Sunday is 6
+        return "We do not schedule meetings on Sundays. Please choose a day from Monday to Saturday between 9:00 AM and 8:00 PM IST."
+
+    # 3. Past Date/Time
+    if proposed_dt < current_dt + timedelta(minutes=29): # Minimum 30 mins in future
+        if proposed_dt.date() < current_dt.date():
+            return f"That date has already passed. The earliest we can schedule is today at {(current_dt + timedelta(minutes=30)).strftime('%I:%M %p')} IST."
+        elif proposed_dt < current_dt + timedelta(minutes=29):
+            return f"We can’t schedule meetings in the past. The earliest available time is {(current_dt + timedelta(minutes=30)).strftime('%I:%M %p')} IST today."
+
+    # 4. Working Hours (9 AM - 8 PM IST)
+    if not (9 <= proposed_dt.hour < 20): # 9 AM to 7:59 PM
+        return "Please choose a time between 9:00 AM and 8:00 PM IST."
+
+    # If all validations pass
+    return f"Meeting successfully scheduled for {proposed_dt.strftime('%d-%m-%Y at %I:%M %p IST')}."
+
+# --- OpenAI Tool Definition (JSON Schema) ---
+# This is what the LLM sees and uses to understand your function
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "schedule_meeting",
+            "description": "Schedules a meeting with the customer based on a specified date and time. Use this tool only when the user explicitly expresses intent to schedule a meeting and provides a date/time.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "date_str": {
+                        "type": "string",
+                        "description": "The requested date for the meeting, e.g., 'tomorrow', 'next Monday', '28-05-2025', 'today'.",
+                    },
+                    "time_str": {
+                        "type": "string",
+                        "description": "The requested time for the meeting, e.g., '4 PM', '10:30 AM', 'right now', 'in 30 minutes'.",
+                    },
+                    "current_datetime_iso": {
+                        "type": "string",
+                        "description": "The current date and time in ISO 8601 format (e.g., 'YYYY-MM-DDTHH:MM:SS'). This is used as a reference point for relative dates like 'tomorrow' or 'next week'. Always provide the exact current time from the user's system.",
+                    },
+                },
+                "required": ["date_str", "time_str", "current_datetime_iso"],
+            },
+        },
+    }
+]
+
+# --- API Views ---
+
+class ChatBot_View(APIView):
+    def post(self, request):
+        question = str(request.data.get('question', '')).strip()
+        channel_id = str(request.data.get('channel_id', '')).strip()
+        phonenumber = str(request.data.get('phonenumber', '')).strip()
+        uuid = str(request.data.get('uuid', '')).strip()
+        call_disconnect = request.data.get('call_disconnect', False) # Default to False
+
+        if not uuid:
+            return Response({"error": "UUID is required for conversation tracking."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Ensure OpenAI client is initialized
+        if openai_client is None:
+            logging.error("OpenAI client not initialized. Cannot process request.")
+            return Response({"error": "Chatbot service is currently unavailable."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        # --- Handle Call Disconnect ---
+        if call_disconnect:
+            logging.info(f"Call disconnected for UUID: {uuid}. Processing disposition.")
+            conn = None
+            try:
+                conn = get_db_connection()
+                if not conn:
+                    raise Exception("Failed to connect to database for disposition.")
+
+                conversation_df = pd.read_sql(
+                    f"""
+                    SELECT
+                        id,
+                        disposition,
+                        uuid,
+                        GROUP_CONCAT(CONCAT('Customer: ', question, ' || Bot: ', answer) SEPARATOR ' , ') AS all_conversation,
+                        schedule_date
+                    FROM your_table_name
+                    WHERE
+                        uuid = '{uuid}'
+                    GROUP BY uuid;
+                    """,
+                    conn
+                )
+
+                if not conversation_df.empty:
+                    conversation = conversation_df.iloc[0].to_dict()
+                    conversation_data = conversation['all_conversation']
+                    conversation_id = conversation['id']
+
+                    disposition_prompt = f"""
+                    You are an expert at analyzing customer conversations. Given a dialogue between a customer and a bot, your task is to select the most appropriate disposition from the list below that best reflects the customer's final intent in the conversation.
+
+                    List of Dispositions:
+                    1. Meeting Scheduled
+                    2. Interested
+                    3. Not Interested
+                    4. Call Back
+                    5. Do Not Call Me
+                    6. Remove My Number
+                    7. DND
+                    8. DNC
+                    9. Stop Calling
+                    10. I Will Complain
+
+                    Instructions:
+                    - Analyze the entire conversation carefully.
+                    - Focus on the customer’s final intent or sentiment.
+                    - Select and return only the disposition name from the list (e.g., "Interested", "Meeting Scheduled").
+                    - Do NOT include numbering, quotes, markdown symbols like **, or any explanation — just the disposition name.
+
+                    Conversation:
+                    {conversation_data}
+
+                    Your Response:
+                    """
+                    try:
+                        response_disposition = openai_client.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=[
+                                {"role": "system", "content": "You are a helpful assistant for classifying customer call dispositions."},
+                                {"role": "user", "content": disposition_prompt}
+                            ],
+                            max_tokens=50,
+                            temperature=0.7,
+                            top_p=0.5
+                        )
+                        disposition = response_disposition.choices[0].message.content.strip()
+                        logging.info(f"UUID {uuid} - Predicted Disposition: {disposition}")
+                    except (OpenAIError, Exception) as e: # Catch general OpenAI errors and others
+                        logging.error(f"OpenAI API error getting disposition for UUID {uuid}: {e}")
+                        disposition = "Unknown (API Error)"
+
+
+                    schedule_date = None
+                    if "Meeting Scheduled".lower() in disposition.lower():
+                        current_datetime_str_for_llm = datetime.now().strftime("%d/%m/%Y %I:%M %p")
+                        meeting_time_prompt = f"""
+                        You are an intelligent assistant skilled at analyzing customer conversations to schedule meetings. Your task is to extract the final confirmed meeting **date and time** between a customer and a bot.
+
+                        Guidelines:
+                        - Read the full conversation carefully.
+                        - Identify the **final meeting date and time** that both the customer and bot agree on.
+                        - If the customer says vague terms like "tomorrow", "day after", "next Monday", or just a time like "4 PM", use the following current date and time as the reference:
+                        Current Date and Time: {current_datetime_str_for_llm}
+                        - Resolve such vague expressions into a full date and time accordingly.
+                        - Return only one final confirmed meeting date and time in this exact format:
+                        "DD/MM/YYYY hh:mm AM/PM"
+                        - If no final date and time is confirmed, return:
+                        null
+
+                        Here is the conversation:
+                        {conversation_data}
+
+                        Return ONLY one of the following:
+                        1. A single line with date and time: "DD/MM/YYYY hh:mm AM/PM"
+                        2. null
+                        Do NOT include any extra words or explanation.
+                        """
+                        try:
+                            response_meeting_time = openai_client.chat.completions.create(
+                                model="gpt-3.5-turbo",
+                                messages=[
+                                    {"role": "system", "content": "You are a helpful assistant for extracting meeting times."},
+                                    {"role": "user", "content": meeting_time_prompt}
+                                ],
+                                max_tokens=50,
+                                temperature=0.7,
+                                top_p=0.5
+                            )
+                            meeting_time_raw = response_meeting_time.choices[0].message.content.strip()
+                            if meeting_time_raw.lower() != "null":
+                                try:
+                                    schedule_date = datetime.strptime(meeting_time_raw, "%d/%m/%Y %I:%M %p").strftime("%Y-%m-%d %H:%M:%S")
+                                    logging.info(f"UUID {uuid} - Extracted Meeting Time: {meeting_time_raw}")
+                                except ValueError:
+                                    logging.warning(f"UUID {uuid} - Failed to parse meeting time: {meeting_time_raw}")
+                                    schedule_date = None
+                            else:
+                                logging.info(f"UUID {uuid} - No specific meeting time extracted.")
+                        except (OpenAIError, Exception) as e:
+                            logging.error(f"OpenAI API error getting meeting time for UUID {uuid}: {e}")
+                            schedule_date = None
+
+                    with conn.cursor() as cur:
+                        if schedule_date:
+                            update_query = """
+                                UPDATE your_table_name
+                                SET disposition = %s, schedule_date = %s
+                                WHERE id = %s;
+                            """
+                            cur.execute(update_query, (disposition, schedule_date, conversation_id))
+                        else:
+                            update_query = """
+                                UPDATE your_table_name
+                                SET disposition = %s
+                                WHERE id = %s;
+                            """
+                            cur.execute(update_query, (disposition, conversation_id))
+                        conn.commit()
+                        logging.info(f"UUID {uuid} - Database updated with disposition: {disposition} and schedule_date: {schedule_date}.")
+
+                else:
+                    logging.warning(f"UUID {uuid} - No conversation data found in DB to process for disposition.")
+
+            except Exception as e:
+                logging.error(f"Error during call disconnect processing for UUID {uuid}: {e}")
+            finally:
+                if conn:
+                    conn.close()
+                delete_conversation_history(uuid)
+                return Response({"question": "", "answer": "Call Disconnected"}, status=status.HTTP_200_OK)
+
+        # --- Handle Active Conversation ---
+        conversation_history = get_conversation_history(uuid)
+
+        # Always provide current time/date to the LLM for context
+        current_datetime_for_llm = datetime.now()
+        current_date_str = current_datetime_for_llm.strftime("%d-%m-%Y")
+        current_time_str = current_datetime_for_llm.strftime("%I:%M %p")
+        current_day_str = current_datetime_for_llm.strftime("%A")
+        current_datetime_iso = current_datetime_for_llm.isoformat() # For passing to tool
+
+        # Determine greeting based on current time
+        greeting_time_hour = int(current_datetime_for_llm.strftime("%H"))
+        if 0 < greeting_time_hour < 12:
+            greeting = "Good morning"
+        elif 12 <= greeting_time_hour < 18:
+            greeting = "Good afternoon"
+        else:
+            greeting = "Good evening"
+
+        # --- Simplified LLM Prompt (Leveraging Tools) ---
+        qna_prompt = f"""
+        You are an outbound sales agent named Jessica, calling on behalf of Motilal Oswal to introduce a new investment opportunity. Your goal is to spark interest, explain the benefits of the investment, and schedule a meeting. Your responses should be confident, proactive, and persuasive, aimed at generating interest and moving the conversation towards scheduling a meeting. Do not act like a customer service agent.
+
+        Current Date: {current_date_str}
+        Current Time: {current_time_str}
+        Today is: {current_day_str}
+        NFO Last Date: {NFO_LAST_DATE.strftime("%d-%m-%Y at %I:%M %p IST")}
+
+        You have access to a tool named `schedule_meeting`. Use this tool WHENEVER the user expresses an intent to schedule a meeting, provides a date, and a time. Always provide the most precise date and time you can extract to the tool.
+
+        When asked, "Why are you calling me?", clearly explain the purpose of your call and how the opportunity benefits the customer.
+
+        Follow these structured steps:
+        1️⃣ Warm Introduction: Greet the customer ({greeting}), introduce yourself confidently, and directly state the fund’s name and its purpose in the first message. If the customer interrupts at the beginning of the call, proceed with answering their question and do not repeat your introduction.
+
+        2️⃣ Engagement & Value Proposition: Highlight the fund's key benefits concisely and persuasively, using the provided context.
+
+        3️⃣ Meeting Scheduling: Once interest is established, or the user expresses intent, ask an open-ended question to get their preferred date and time for a meeting. If they give a vague time (e.g., "tomorrow", "next Monday"), clarify as needed or pass to the tool.
+
+        4️⃣ Tool Usage: When the user asks to schedule, use the `schedule_meeting` tool with the extracted date and time.
+            - If the tool indicates success, confirm the meeting details clearly and politely.
+            - If the tool indicates a restriction (e.g., Sunday, past date, outside hours, NFO ended), explain the specific restriction clearly and offer alternative valid times or days.
+
+        5️⃣ Objection Handling: Address concerns naturally and non-repetitively. Avoid pushing too hard if they firmly decline.
+
+        6️⃣ Single-Word Response Management: If the user says “Okay” or “Hmm,” prompt them toward engagement without looping.
+
+        7️⃣ Call Closure: If the customer declines twice or firmly refuses, say: "I understand! Thank you for your time. Have a great day!" Remain silent until they disconnect. Do not re-engage. If the user expresses gratitude or indicates they are done (e.g., 'thank you,' 'goodbye'), end the conversation politely without asking to schedule again.
+
+        Conversation Guidelines:
+        - Retain full chat history. Do not reset between messages. Build logically on what was previously said.
+        - Never repeat full intro again after conversation has started.
+        - Respond briefly (2–3 lines max), unless explanation is needed.
+        - If answer not in context, use external knowledge related only to mutual funds.
+        - Detect Hindi and switch to Hinglish if necessary.
+        - Replace "IT" with "I.T" or "I T". Replace "ITES" with "I.T.E.S" or "I T E S". Do not output plain "IT" or "ITES".
+        """
+
+        # Append the current user message to the conversation history *before* calling the LLM
+        update_conversation(uuid, {"role": "user", "content": question})
+
+        # Retrieve the updated conversation history (last N exchanges for context)
+        # Note: 'chat' here will be the combined history including the latest user message
+        chat_history_for_llm = get_conversation_history(uuid)
+
+        messages = [
+            {"role": "system", "content": qna_prompt}
+        ] + chat_history_for_llm
+
+        # --- First LLM Call: Decide if a tool needs to be called ---
+        try:
+            response_llm_first_call = openai_client.chat.completions.create(
+                model="gpt-3.5-turbo", # Or "gpt-4-turbo-preview" for more complex reasoning
+                messages=messages,
+                tools=TOOLS, # Provide the tools definition
+                tool_choice="auto", # Allow the model to choose to call a tool or respond
+                max_tokens=150,
+                temperature=0.7,
+                top_p=0.5,
+            )
+            
+            answer = "" # Initialize answer
+            tool_calls = response_llm_first_call.choices[0].message.tool_calls
+
+            if tool_calls:
+                logging.info(f"UUID {uuid} - Tool call detected: {tool_calls[0].function.name}")
+                # Loop through tool calls (though we only expect one for schedule_meeting)
+                for tool_call in tool_calls:
+                    if tool_call.function.name == "schedule_meeting":
+                        # Parse tool arguments
+                        try:
+                            tool_args = json.loads(tool_call.function.arguments)
+                            
+                            # Execute the Python function using the parsed arguments
+                            tool_response_message = schedule_meeting(
+                                date_str=tool_args.get("date_str"),
+                                time_str=tool_args.get("time_str"),
+                                current_datetime_iso=current_datetime_iso # Pass actual current time
+                            )
+                            logging.info(f"UUID {uuid} - Tool execution result: {tool_response_message}")
+
+                            # Add the tool call and its output to messages for the second LLM call
+                            messages.append(response_llm_first_call.choices[0].message) # Append LLM's tool call
+                            messages.append(
+                                {
+                                    "tool_call_id": tool_call.id,
+                                    "role": "tool",
+                                    "name": tool_call.function.name,
+                                    "content": tool_response_message, # Output from your Python function
+                                }
+                            )
+
+                            # --- Second LLM Call: Get final human-friendly response ---
+                            # The model will see the tool's output and generate a natural language response
+                            second_response_llm = openai_client.chat.completions.create(
+                                model="gpt-3.5-turbo",
+                                messages=messages,
+                                max_tokens=150,
+                                temperature=0.7,
+                                top_p=0.5,
+                            )
+                            answer = second_response_llm.choices[0].message.content
+                            
+                        except json.JSONDecodeError:
+                            logging.error(f"UUID {uuid} - Failed to parse tool arguments: {tool_call.function.arguments}")
+                            answer = "I had trouble understanding the details for scheduling. Could you please state the date and time clearly?"
+                        except Exception as ex:
+                            logging.error(f"UUID {uuid} - Error executing tool function: {ex}")
+                            answer = "I encountered an error trying to schedule. Please try again or provide simpler details."
+            else:
+                # If no tool call, the LLM generated a direct text response
+                answer = response_llm_first_call.choices[0].message.content
+
+        except (OpenAIError, Exception) as e:
+            logging.error(f"OpenAI API error during chat completion for UUID {uuid}: {e}")
+            answer = "I'm sorry, I'm having trouble connecting right now. Please try again in a moment."
+
+        # Update conversation history with the assistant's response (from either direct response or tool call)
+        update_conversation(uuid, {"role": "assistant", "content": answer})
+
+        # --- Database Insertion for each turn ---
+        conn = None
+        try:
+            conn = get_db_connection()
+            if conn:
+                with conn.cursor() as cur:
+                    insert_query = """
+                        INSERT INTO your_table_name (question, answer, channelid, phonenumber, uuid, created_at)
+                        VALUES(%s, %s, %s, %s, %s, NOW());
+                    """
+                    cur.execute(insert_query, (question, answer, channel_id, phonenumber, uuid))
+                    conn.commit()
+                    logging.info(f"UUID {uuid} - Turn stored in DB. Question: '{question[:50]}...', Answer: '{answer[:50]}...'")
+            else:
+                logging.warning(f"UUID {uuid} - Could not connect to DB to store conversation turn.")
+        except Exception as e:
+            logging.error(f"Error inserting conversation turn into DB for UUID {uuid}: {e}")
+        finally:
+            if conn:
+                conn.close()
+
+        return Response({"question": question, "answer": answer}, status=status.HTTP_200_OK)
+
+
+class RemoveConversation_View(APIView):
+    def post(self, request):
+        uuid_to_remove = str(request.data.get('uuid')).strip()
+        if not uuid_to_remove:
+            return Response(
+                {"error": "uuid is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        delete_conversation_history(uuid_to_remove)
+
+        if not get_conversation_history(uuid_to_remove):
+            return Response(
+                {"message": f"Conversation for UUID {uuid_to_remove} has been removed from cache."},
+                status=status.HTTP_200_OK
+            )
+        else:
+            return Response(
+                {"message": f"Failed to remove conversation for UUID {uuid_to_remove} from cache (might not have existed)."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class MonitorActiveCalls_View(APIView):
+    def get(self, request):
+        active_uuids = []
+        try:
+            # This relies on the internal implementation of Django's local memory cache.
+            # For other cache backends (e.g., Redis), you'd need to use their specific client methods
+            # to list keys, if supported and efficient.
+            all_cache_keys = cache._cache.keys()
+            for key in all_cache_keys:
+                if key.startswith("conversation:"):
+                    uuid = key.split(":")[1]
+                    active_uuids.append(uuid)
+        except AttributeError:
+            logging.warning("Cannot directly inspect cache keys. MonitorActiveCalls_View may not be accurate for your cache backend. Ensure your cache backend supports key listing if this view is critical for production monitoring.")
+            
+        active_count = len(active_uuids)
+
+        if 0 <= active_count <= 50:
+            in_memory_status = "normal"
+        elif 51 <= active_count <= 80:
+            in_memory_status = "warning"
+        else:
+            in_memory_status = "critical"
+
+        response = {
+            "active_conversations_count": active_count,
+            "cache_memory_status": in_memory_status,
+            "active_uuids_list": active_uuids,
+        }
+
+        return Response(response, status=status.HTTP_200_OK)
