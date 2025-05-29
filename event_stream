@@ -1,0 +1,21 @@
+from flask import Flask, Response
+import time
+
+app = Flask(__name__)
+
+def generate_sse():
+    """Generator function that yields SSE data every second."""
+    count = 0
+
+    message='{"channe_id":"asaddfd321","message":"message"}'
+    while True:
+        time.sleep(1)
+        yield f"data: Message {count} {message}\n\n"
+        count += 1
+
+@app.route('/stream')
+def stream():
+    return Response(generate_sse(), mimetype='text/event-stream')
+
+if __name__ == '__main__':
+    app.run(debug=True, threaded=True, port=3003)
